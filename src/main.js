@@ -249,9 +249,9 @@ function animate() {
     // Update stats
     stats.fps.value = 1000 / (now - stats.fps.lastTime);
     stats.fps.lastTime = now;
-    ui.metrics.fps.textContent = stats.fps.value.toFixed(1);
-    ui.metrics.particles.textContent = activeParticleCount.toLocaleString();
-    ui.metrics.consumed.textContent = stats.consumed.value.toLocaleString();
+    if (ui.metrics.fps) ui.metrics.fps.textContent = stats.fps.value.toFixed(1);
+    if (ui.metrics.particles) ui.metrics.particles.textContent = activeParticleCount.toLocaleString();
+    if (ui.metrics.consumed) ui.metrics.consumed.textContent = stats.consumed.value.toLocaleString();
 
     benchmarkController.update(performance.now());
     

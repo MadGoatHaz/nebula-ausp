@@ -6,6 +6,7 @@ export function createUI() {
             <div>FPS: <strong id="metric-fps">...</strong></div>
             <div>Physics CPU: <strong id="metric-physics-cpu">...</strong> ms</div>
             <div>Render Time: <strong id="metric-render-time">...</strong> ms</div>
+            <div>Live Particles: <strong id="metric-particles">...</strong></div>
             <div>Particles Consumed: <strong id="metric-consumed">...</strong></div>
         </div>
 
@@ -81,6 +82,7 @@ export function createUI() {
             fps: document.getElementById('metric-fps'),
             physicsCpu: document.getElementById('metric-physics-cpu'),
             renderTime: document.getElementById('metric-render-time'),
+            particles: document.getElementById('metric-particles'),
             consumed: document.getElementById('metric-consumed'),
         },
         sandboxControls: {
