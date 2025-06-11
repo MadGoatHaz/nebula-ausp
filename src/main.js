@@ -7,7 +7,6 @@ import { detectCapabilities } from './core/profiler.js';
 import * as THREE from 'three';
 import { GUI } from 'lil-gui';
 import packageJson from '../package.json';
-import PhysicsWorker from './physics/physics.worker.js?worker';
 
 // --- CONSTANTS ---
 const PARTICLE_STRIDE = 8; // (x, y, z, vx, vy, vz, size, age)
@@ -27,20 +26,20 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 const clock = new THREE.Clock();
 let systemCapabilities = {};
 
-console.log('[main] Initializing...');
-
+// Construct the worker path manually to ensure it's correct on deployment
+console.log(`[main] Initializing v${packageJson.version}...`);
+const workerPath = '/nebula-ausp/physics.worker.js';
 let physicsWorker;
 try {
-    physicsWorker = new PhysicsWorker();
+    physicsWorker = new Worker(workerPath, { type: 'module' });
     console.log('[main] Worker object created successfully.');
-
     physicsWorker.onerror = (error) => {
-        console.error('[main] Worker error:', error);
-        alert(`A critical error occurred with the physics worker. Please check the console. Error: ${error.message}`);
+        console.error('[main] Worker error:', error.message);
+        alert(`A critical error occurred with the physics worker: ${error.message}`);
     };
 } catch (error) {
     console.error('[main] Failed to create Worker:', error);
-    alert('Failed to initialize the physics engine. The application cannot start. Please check the console.');
+    alert('Failed to initialize the physics engine. The application cannot start.');
 }
 
 const benchmarkController = new BenchmarkController();
@@ -98,6 +97,7 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
+        // console.log('[main] Received message from worker:', e.data.type);
         switch (e.data.type) {
             case 'physics_update':
                 if (e.data.buffer) {

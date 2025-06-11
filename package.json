@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist",
+    "deploy": "npm version patch --no-git-tag-version && vite build && gh-pages -d dist",
     "server": "node server.js"
   },
   "devDependencies": {

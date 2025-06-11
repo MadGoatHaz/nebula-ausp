@@ -1,5 +1,3 @@
-console.log(`[physics.worker] Script loaded and executing.`);
-
 let dataView, accelerations, masses;
 let maxParticles = 0, currentParticleCount = 0;
 const STRIDE = 6;
