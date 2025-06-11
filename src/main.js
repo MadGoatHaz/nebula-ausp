@@ -112,6 +112,12 @@ async function main() {
                     // These assignments belong here, where we know these properties exist.
                     activeParticleCount = e.data.particleCount;
                     stats.consumed.value = e.data.consumedParticles;
+
+                    // Now that the physics is done and the buffer is back, request the next frame.
+                    // This prevents the DataCloneError.
+                    if (animationFrameId) {
+                        animationFrameId = requestAnimationFrame(animate);
+                    }
                 }
                 break;
             case 'worker_error':
