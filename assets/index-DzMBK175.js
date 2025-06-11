@@ -49,7 +49,7 @@
             <summary style="cursor:pointer; font-size: 13px; margin-top: 15px;">Info / Help</summary>
             <div class="info-box">
                 <strong>UI Panels:</strong> Both the control panel and the log panel are scrollable if their content is too long.<br>
-                <a href="/leaderboard.html" style="color: var(--primary-color);">View Public Leaderboard</a>
+                <a href="./leaderboard.html" style="color: var(--primary-color);">View Public Leaderboard</a>
             </div>
             <div id="version-info" style="font-size: 10px; color: #777; margin-top: 10px; text-align: right;"></div>
         </details>
