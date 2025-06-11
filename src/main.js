@@ -33,6 +33,7 @@ const log = new Log();
 let dataView = null;
 let particleInstances = null;
 let animationFrameId = null;
+let instanceColorAttribute, instanceVelocityAttribute;
 
 // --- Animation-Scoped Temp Variables ---
 // These are declared outside the animation loop to avoid re-creation on every frame.
@@ -49,17 +50,18 @@ async function main() {
     const particleMaterial = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0.0 },
-            uSpeed: { value: 0.0 },
         },
         vertexShader: `
             attribute vec3 instanceColor;
+            attribute vec3 instanceVelocity;
             varying vec3 vColor;
-            uniform float uSpeed;
             void main() {
                 vColor = instanceColor;
                 vec3 p = position;
-                if (uSpeed > 1.0) {
-                   p.x += uSpeed * 0.01; 
+                float speed = length(instanceVelocity);
+                if (speed > 1.0) {
+                   vec3 dir = normalize(instanceVelocity);
+                   p += dir * speed * 0.01; // Motion blur
                 }
                 gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             }
@@ -72,7 +74,14 @@ async function main() {
         `
     });
     
-    particleInstances = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5, 0), particleMaterial, MAX_PARTICLES);
+    const particleGeometry = new THREE.IcosahedronGeometry(5, 0);
+    // Add instanced attributes
+    instanceColorAttribute = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3);
+    instanceVelocityAttribute = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3);
+    particleGeometry.setAttribute('instanceColor', instanceColorAttribute);
+    particleGeometry.setAttribute('instanceVelocity', instanceVelocityAttribute);
+
+    particleInstances = new THREE.InstancedMesh(particleGeometry, particleMaterial, MAX_PARTICLES);
     particleInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(particleInstances);
 
@@ -200,8 +209,6 @@ function updateParticles(particleCount, elapsedTime) {
     const baseHue = 0.6; // Blueish
     const hueVariance = 0.1;
 
-    const uniforms = particleInstances.material.uniforms;
-
     for (let i = 0; i < particleCount; i++) {
         const offset = i * PARTICLE_STRIDE;
         _tempObject.position.set(dataView[offset], dataView[offset + 1], dataView[offset + 2]);
@@ -211,21 +218,19 @@ function updateParticles(particleCount, elapsedTime) {
         const vx = dataView[offset + 3];
         const vy = dataView[offset + 4];
         const vz = dataView[offset + 5];
+        instanceVelocityAttribute.setXYZ(i, vx, vy, vz);
+        
         const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
-        
-        uniforms.uSpeed.value = speed;
-        
         const hue = baseHue + (i % 20 / 20) * hueVariance;
         const saturation = Math.max(0.2, 1.0 - speed / 400);
         const lightness = Math.min(1.0, 0.4 + speed / 200.0);
         _tempColor.setHSL(hue, saturation, lightness);
-        particleInstances.setColorAt(i, _tempColor);
+        instanceColorAttribute.setXYZ(i, _tempColor.r, _tempColor.g, _tempColor.b);
     }
     particleInstances.count = particleCount;
     particleInstances.instanceMatrix.needsUpdate = true;
-    if (particleInstances.instanceColor) {
-        particleInstances.instanceColor.needsUpdate = true;
-    }
+    instanceColorAttribute.needsUpdate = true;
+    instanceVelocityAttribute.needsUpdate = true;
 }
 
 main().catch(console.error);
