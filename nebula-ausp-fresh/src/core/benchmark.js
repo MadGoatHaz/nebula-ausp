@@ -30,8 +30,8 @@ export class BenchmarkController {
             gpu: { avgGpuTime: 0 },
             cpu: { avgCpuTime: 0 },
             combined: { avgFps: 0 },
+            finalScore: 0
         };
-        this.finalScore = 0;
 
         this.log = null;
         this.logMessage = null;

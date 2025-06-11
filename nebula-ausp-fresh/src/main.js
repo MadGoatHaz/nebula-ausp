@@ -1,9 +1,9 @@
 import './style.css';
-import { createUI } from './components/ui.js';
+import { createUI, initUI, updateUI } from './components/ui.js';
 import { createScene } from './components/scene.js';
 import { BenchmarkController, State } from './core/benchmark.js';
 import { Log } from './core/log.js';
-import { detectCapabilities } from './core/profiler.js';
+import { getSystemInfo } from './core/profiler.js';
 import * as THREE from 'three';
 import { GUI } from 'lil-gui';
 import packageJson from '../package.json';
@@ -33,15 +33,11 @@ let dataView = null;
 let particleInstances = null;
 let animationFrameId = null;
 
-// --- Animation-Scoped Temp Variables ---
-// These are declared outside the animation loop to avoid re-creation on every frame.
-const _tempObject = new THREE.Object3D();
-const _tempColor = new THREE.Color();
-
 // --- MAIN ---
 async function main() {
+    initUI(ui, benchmarkController, physicsWorker, log);
     ui.version.textContent = `v${packageJson.version}`;
-    systemCapabilities = await detectCapabilities(renderer);
+    systemCapabilities = await getSystemInfo();
     console.log("System Capabilities:", systemCapabilities);
     
     // Create particle instances mesh
@@ -93,68 +89,15 @@ async function main() {
                 break;
             case 'benchmark_update':
                 benchmarkController.handleWorkerUpdate(e.data.payload, log);
-                ui.benchmarkStatusEl.textContent = benchmarkController.state;
-                if (benchmarkController.state === State.SEARCHING_MAX_Q) {
-                    ui.metrics.fps.textContent = e.data.payload.fps.toFixed(1);
-                }
+                updateUI(ui, benchmarkController.state, benchmarkController.currentParticleCount);
                 break;
             case 'benchmark_complete':
                 benchmarkController.handleCompletion(e.data.results, systemCapabilities, log);
-                ui.benchmarkStatusEl.textContent = 'Benchmark Complete. Ready for next run.';
-                ui.submitScoreBtn.disabled = false;
+                updateUI(ui, benchmarkController.state);
+                ui.showSubmitButton();
                 break;
         }
     };
-
-    // --- EVENT LISTENERS ---
-    ui.submitScoreBtn.addEventListener('click', () => {
-        ui.submissionModal.backdrop.classList.remove('hidden');
-        ui.submissionModal.scoreSummary.textContent = `Final Score: ${benchmarkController.finalScore}`;
-        ui.submissionModal.systemSummary.innerHTML = `
-            <strong>CPU:</strong> ${systemCapabilities.cpuCores} Cores<br>
-            <strong>GPU:</strong> ${systemCapabilities.gpuRenderer}
-        `;
-    });
-
-    ui.submissionModal.cancelBtn.addEventListener('click', () => {
-        ui.submissionModal.backdrop.classList.add('hidden');
-    });
-
-    ui.submissionModal.submitBtn.addEventListener('click', async () => {
-        const name = prompt("Enter your name for the leaderboard:", "Anonymous");
-        if (!name) return; // User cancelled
-
-        const submissionData = {
-            name: name,
-            score: benchmarkController.finalScore,
-            system: {
-                gpu: systemCapabilities.gpuRenderer,
-                cpuCores: systemCapabilities.cpuCores,
-            }
-        };
-
-        try {
-            const response = await fetch('http://localhost:3000/leaderboard', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(submissionData),
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                alert(`Score submitted successfully! Your rank is #${result.rank}.`);
-            } else {
-                throw new Error(`Server error: ${response.status}`);
-            }
-        } catch (error) {
-            console.error("Failed to submit score:", error);
-            alert("Failed to submit score. See console for details.");
-        } finally {
-            ui.submissionModal.backdrop.classList.add('hidden');
-        }
-    });
 
     physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES });
     physicsWorker.postMessage({ type: 'set_particles', count: parseInt(ui.sandboxControls.particles.value) });
@@ -190,14 +133,16 @@ function animate() {
 }
 
 function updateParticles(particleCount, elapsedTime) {
+    const temp = new THREE.Object3D();
+    const color = new THREE.Color();
     const baseHue = 0.6; // Blueish
     const hueVariance = 0.1;
 
     for (let i = 0; i < particleCount; i++) {
         const offset = i * PARTICLE_STRIDE;
-        _tempObject.position.set(dataView[offset], dataView[offset + 1], dataView[offset + 2]);
-        _tempObject.updateMatrix();
-        particleInstances.setMatrixAt(i, _tempObject.matrix);
+        temp.position.set(dataView[offset], dataView[offset + 1], dataView[offset + 2]);
+        temp.updateMatrix();
+        particleInstances.setMatrixAt(i, temp.matrix);
 
         const vx = dataView[offset + 3];
         const vy = dataView[offset + 4];
@@ -207,8 +152,8 @@ function updateParticles(particleCount, elapsedTime) {
         const hue = baseHue + (i % 20 / 20) * hueVariance;
         const saturation = Math.max(0.2, 1.0 - speed / 400);
         const lightness = Math.min(1.0, 0.4 + speed / 200.0);
-        _tempColor.setHSL(hue, saturation, lightness);
-        particleInstances.setColorAt(i, _tempColor);
+        color.setHSL(hue, saturation, lightness);
+        particleInstances.setColorAt(i, color);
     }
     particleInstances.count = particleCount;
     particleInstances.instanceMatrix.needsUpdate = true;

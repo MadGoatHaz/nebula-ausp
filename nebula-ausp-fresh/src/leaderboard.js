@@ -1,6 +1,6 @@
 async function populateLeaderboard() {
     try {
-        const response = await fetch('http://localhost:3000/leaderboard');
+        const response = await fetch('leaderboard-data.json');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -13,7 +13,7 @@ async function populateLeaderboard() {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${entry.rank}</td>
-                <td>${entry.name}</td>
+                <td>${entry.user}</td>
                 <td>${entry.score}</td>
                 <td>${entry.system.gpu} / ${entry.system.cpuCores} Cores</td>
                 <td>${entry.date}</td>
