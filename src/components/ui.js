@@ -11,7 +11,7 @@ export function createUI() {
 
         <div class="config-group-header">Comprehensive Benchmark</div>
         <div id="benchmark-status">Ready for standard test.</div>
-        <button id="benchmark-btn">Run Comprehensive Benchmark</button>
+        <button id="benchmark-btn">Run Benchmark</button>
         <button id="download-log-btn" disabled>Download Log</button>
         <button id="submit-score-btn" disabled>Submit Score</button>
 

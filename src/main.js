@@ -19,7 +19,7 @@ const gui = new GUI();
 const {
     scene, camera, renderer, composer, controls,
     diskMaterial, moon, nebulaMaterials,
-    filmPass
+    filmPass, jets, jetParticles
 } = createScene(gui);
 document.body.insertBefore(renderer.domElement, document.getElementById('ui-container'));
 
@@ -174,6 +174,34 @@ async function main() {
         }
     });
 
+    ui.benchmarkBtn.addEventListener('click', () => {
+        if (benchmarkController.isRunning) {
+            // This would be a 'Stop' button, logic to be added.
+        } else {
+            benchmarkController.start(physicsWorker, ui.sandboxControls);
+        }
+    });
+
+    ui.sandboxControls.particles.addEventListener('input', (e) => {
+        const count = parseInt(e.target.value, 10);
+        ui.sandboxControls.particleCountLabel.textContent = count.toLocaleString();
+        physicsWorker.postMessage({ type: 'set_particles', count: count });
+    });
+
+    ui.sandboxControls.bhMass.addEventListener('input', (e) => {
+        const mass = parseInt(e.target.value, 10);
+        physicsWorker.postMessage({ type: 'set_mass', mass: mass });
+    });
+
+    ui.sandboxControls.physicsQuality.addEventListener('change', (e) => {
+        physicsWorker.postMessage({ type: 'set_quality', quality: e.target.value });
+    });
+
+    ui.sandboxControls.resetCameraBtn.addEventListener('click', () => {
+        controls.reset();
+        camera.position.set(0, 1000, 2500);
+    });
+
     // Initialize and start the worker
     physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES, blackHoleMass: 400000 });
 }
@@ -200,6 +228,7 @@ function animate() {
 
 
     updateParticles(activeParticleCount, elapsedTime);
+    updateJets(dt);
 
     controls.update();
     composer.render(dt);
@@ -231,6 +260,42 @@ function updateParticles(particleCount, elapsedTime) {
     particleInstances.instanceMatrix.needsUpdate = true;
     instanceColorAttribute.needsUpdate = true;
     instanceVelocityAttribute.needsUpdate = true;
+}
+
+function updateJets(dt) {
+    const positions = jets.geometry.attributes.position.array;
+    let visibleJetParticles = 0;
+
+    for (let i = 0; i < jetParticles.length; i++) {
+        const p = jetParticles[i];
+        p.lifetime -= dt;
+
+        if (p.lifetime <= 0) {
+            // Respawn particle
+            p.lifetime = p.initialLifetime = 2 + Math.random() * 3;
+            const y = (Math.random() > 0.5 ? 1 : -1) * 110; // Start just above/below the pole
+            p.velocity.set(
+                (Math.random() - 0.5) * 200,
+                (y > 0 ? 1 : -1) * (1000 + Math.random() * 1000),
+                (Math.random() - 0.5) * 200
+            );
+            positions[i * 3] = 0;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = 0;
+        } else {
+            // Update position
+            const currentX = positions[i * 3];
+            const currentY = positions[i * 3 + 1];
+            const currentZ = positions[i * 3 + 2];
+
+            positions[i * 3] = currentX + p.velocity.x * dt;
+            positions[i * 3 + 1] = currentY + p.velocity.y * dt;
+            positions[i * 3 + 2] = currentZ + p.velocity.z * dt;
+        }
+        visibleJetParticles++;
+    }
+    jets.geometry.setDrawRange(0, visibleJetParticles);
+    jets.geometry.attributes.position.needsUpdate = true;
 }
 
 main().catch(console.error);
