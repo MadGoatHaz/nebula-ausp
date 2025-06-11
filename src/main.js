@@ -24,6 +24,13 @@ const {
 document.body.insertBefore(renderer.domElement, document.getElementById('ui-container'));
 
 const clock = new THREE.Clock();
+const stats = {
+    fps: { value: 0, smoothing: 0.9, lastTime: 0 },
+    renderTime: { value: 0, smoothing: 0.9 },
+    physicsCpu: { value: 0, smoothing: 0.9 },
+    particles: { value: 0 },
+    consumed: { value: 0 }
+};
 let systemCapabilities = {};
 
 const physicsWorker = new Worker(new URL('./physics/physics.worker.js', import.meta.url), { type: 'module' });
@@ -88,22 +95,23 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
+        if (e.data.buffer) {
+            // Always update the dataView with the returned buffer
+            dataView = new Float32Array(e.data.buffer);
+            activeParticleCount = e.data.particleCount;
+            stats.consumed.value = e.data.consumedParticles;
+        }
+
         switch (e.data.type) {
             case 'initialized':
-                if (e.data.buffer) {
-                    dataView = new Float32Array(e.data.buffer);
-                    if (!animationFrameId) {
-                        console.log('[main] Worker initialized. Starting animation loop...');
-                        animationFrameId = requestAnimationFrame(animate);
-                        physicsWorker.postMessage({ type: 'set_particles', count: 10000 });
-                    }
+                if (!animationFrameId) {
+                    console.log('[main] Worker initialized. Starting animation loop...');
+                    animationFrameId = requestAnimationFrame(animate);
                 }
                 break;
             case 'physics_update':
-                if (e.data.buffer) {
-                    dataView = new Float32Array(e.data.buffer);
-                    activeParticleCount = e.data.particleCount;
-                }
+                // The main logic is now simply to get the buffer back and continue the loop.
+                // The animate function will post the next message.
                 break;
             case 'worker_error':
                 console.error("Received error from worker:", e.data.error);
@@ -202,18 +210,21 @@ async function main() {
     });
 
     ui.sandboxControls.particles.addEventListener('input', (e) => {
+        if (!dataView) return;
         const count = parseInt(e.target.value, 10);
         ui.sandboxControls.particleCountLabel.textContent = count.toLocaleString();
-        physicsWorker.postMessage({ type: 'set_particles', count: count });
+        physicsWorker.postMessage({ type: 'set_particles', count: count, buffer: dataView.buffer }, [dataView.buffer]);
     });
 
     ui.sandboxControls.bhMass.addEventListener('input', (e) => {
+        if (!dataView) return;
         const mass = parseInt(e.target.value, 10);
-        physicsWorker.postMessage({ type: 'set_mass', mass: mass });
+        physicsWorker.postMessage({ type: 'set_mass', mass: mass, buffer: dataView.buffer }, [dataView.buffer]);
     });
 
     ui.sandboxControls.physicsQuality.addEventListener('change', (e) => {
-        physicsWorker.postMessage({ type: 'set_quality', quality: e.target.value });
+        if (!dataView) return;
+        physicsWorker.postMessage({ type: 'set_quality', quality: e.target.value, buffer: dataView.buffer }, [dataView.buffer]);
     });
 
     ui.sandboxControls.resetCameraBtn.addEventListener('click', () => {
@@ -231,10 +242,17 @@ function animate() {
 
     if (!dataView) return; 
 
+    const now = performance.now();
     const dt = clock.getDelta();
     const elapsedTime = clock.getElapsedTime();
 
-    // The particleCount is now received from the worker, not calculated from the buffer length.
+    // Update stats
+    stats.fps.value = 1000 / (now - stats.fps.lastTime);
+    stats.fps.lastTime = now;
+    ui.metrics.fps.textContent = stats.fps.value.toFixed(1);
+    ui.metrics.particles.textContent = activeParticleCount.toLocaleString();
+    ui.metrics.consumed.textContent = stats.consumed.value.toLocaleString();
+
     benchmarkController.update(performance.now());
     
     diskMaterial.uniforms.uTime.value = elapsedTime;
@@ -246,7 +264,15 @@ function animate() {
         0,
         Math.sin(elapsedTime * 0.1) * MOON_ORBIT_RADIUS
     );
-    physicsWorker.postMessage({ type: 'update_moon', x: moon.position.x, y: moon.position.y, z: moon.position.z });
+    
+    // Always send the buffer back to the worker for the next frame.
+    physicsWorker.postMessage({ 
+        type: 'update_moon', 
+        x: moon.position.x, 
+        y: moon.position.y, 
+        z: moon.position.z,
+        buffer: dataView.buffer
+    }, [dataView.buffer]);
 
 
     updateParticles(activeParticleCount, elapsedTime);
