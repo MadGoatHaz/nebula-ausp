@@ -43,6 +43,14 @@ let animationFrameId = null;
 let activeParticleCount = 0;
 let instanceColorAttribute, instanceVelocityAttribute;
 
+// This object will hold the latest state from the UI controls.
+const simState = {
+    particleCount: 10000,
+    bhMass: 400000,
+    physicsQuality: 'simple',
+};
+let stateChanged = false; // Flag to indicate if we need to send updates
+
 // --- Animation-Scoped Temp Variables ---
 // These are declared outside the animation loop to avoid re-creation on every frame.
 const _tempObject = new THREE.Object3D();
@@ -95,46 +103,71 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
+        if (!e.data.buffer) {
+            // Handle non-buffer messages like benchmark updates separately
+            switch (e.data.type) {
+                case 'benchmark_update':
+                    benchmarkController.handleWorkerUpdate(e.data.payload, log);
+                    ui.benchmarkStatusEl.textContent = benchmarkController.state;
+                    if (benchmarkController.state === State.SEARCHING_MAX_Q) {
+                        ui.metrics.fps.textContent = e.data.payload.fps.toFixed(1);
+                    }
+                    return; // Don't proceed to buffer logic
+                 case 'benchmark_complete':
+                    benchmarkController.handleCompletion(e.data.results, systemCapabilities, log);
+                    ui.benchmarkStatusEl.textContent = 'Benchmark Complete. Ready for next run.';
+                    ui.submitScoreBtn.disabled = false;
+                    return; // Don't proceed to buffer logic
+                 case 'worker_error':
+                    console.error("Received error from worker:", e.data.error);
+                    alert(`Physics worker crashed!\\n\\nMessage: ${e.data.error.message}`);
+                    return; // Don't proceed to buffer logic
+            }
+        }
+        
+        // --- Buffer-based message handling ---
+        dataView = new Float32Array(e.data.buffer);
+
         switch (e.data.type) {
             case 'initialized':
-                if (e.data.buffer) {
-                    dataView = new Float32Array(e.data.buffer);
-                    if (!animationFrameId) {
-                        console.log('[main] Worker initialized. Starting animation loop...');
-                        animationFrameId = requestAnimationFrame(animate);
-                    }
-                }
+                // Worker is ready, kick off the first animation frame and physics step.
+                animationFrameId = requestAnimationFrame(animate);
+                physicsWorker.postMessage({
+                    type: 'physics_update',
+                    buffer: dataView.buffer,
+                    particleCount: simState.particleCount,
+                    bhMass: simState.bhMass,
+                    quality: simState.physicsQuality,
+                    moon_x: moon.position.x,
+                    moon_y: moon.position.y,
+                    moon_z: moon.position.z,
+                }, [dataView.buffer]);
                 break;
+                
             case 'physics_update':
-                if (e.data.buffer) {
-                    // The worker has finished its step and sent the buffer back.
-                    dataView = new Float32Array(e.data.buffer);
-                    // These assignments belong here, where we know these properties exist.
-                    activeParticleCount = e.data.particleCount;
-                    stats.consumed.value = e.data.consumedParticles;
+                // Physics step is complete. Update stats, render the new state, and kick off the next step.
+                activeParticleCount = e.data.particleCount;
+                stats.consumed.value = e.data.consumedParticles;
+                
+                animationFrameId = requestAnimationFrame(animate);
 
-                    // Now that the physics is done and the buffer is back, request the next frame.
-                    // This prevents the DataCloneError.
-                    if (animationFrameId) {
-                        animationFrameId = requestAnimationFrame(animate);
-                    }
+                const message = {
+                    type: 'physics_update',
+                    buffer: dataView.buffer,
+                    moon_x: moon.position.x,
+                    moon_y: moon.position.y,
+                    moon_z: moon.position.z,
+                };
+
+                // Piggy-back state changes if they have occurred
+                if (stateChanged) {
+                    message.particleCount = simState.particleCount;
+                    message.bhMass = simState.bhMass;
+                    message.quality = simState.physicsQuality;
+                    stateChanged = false; // Reset the flag
                 }
-                break;
-            case 'worker_error':
-                console.error("Received error from worker:", e.data.error);
-                alert(`Physics worker crashed!\n\nMessage: ${e.data.error.message}`);
-                break;
-            case 'benchmark_update':
-                benchmarkController.handleWorkerUpdate(e.data.payload, log);
-                ui.benchmarkStatusEl.textContent = benchmarkController.state;
-                if (benchmarkController.state === State.SEARCHING_MAX_Q) {
-                    ui.metrics.fps.textContent = e.data.payload.fps.toFixed(1);
-                }
-                break;
-            case 'benchmark_complete':
-                benchmarkController.handleCompletion(e.data.results, systemCapabilities, log);
-                ui.benchmarkStatusEl.textContent = 'Benchmark Complete. Ready for next run.';
-                ui.submitScoreBtn.disabled = false;
+                
+                physicsWorker.postMessage(message, [dataView.buffer]);
                 break;
         }
     };
@@ -217,21 +250,19 @@ async function main() {
     });
 
     ui.sandboxControls.particles.addEventListener('input', (e) => {
-        if (!dataView) return;
-        const count = parseInt(e.target.value, 10);
-        ui.sandboxControls.particleCountLabel.textContent = count.toLocaleString();
-        physicsWorker.postMessage({ type: 'set_particles', count: count, buffer: dataView.buffer }, [dataView.buffer]);
+        simState.particleCount = parseInt(e.target.value, 10);
+        ui.sandboxControls.particleCountLabel.textContent = simState.particleCount.toLocaleString();
+        stateChanged = true;
     });
 
     ui.sandboxControls.bhMass.addEventListener('input', (e) => {
-        if (!dataView) return;
-        const mass = parseInt(e.target.value, 10);
-        physicsWorker.postMessage({ type: 'set_mass', mass: mass, buffer: dataView.buffer }, [dataView.buffer]);
+        simState.bhMass = parseInt(e.target.value, 10);
+        stateChanged = true;
     });
 
     ui.sandboxControls.physicsQuality.addEventListener('change', (e) => {
-        if (!dataView) return;
-        physicsWorker.postMessage({ type: 'set_quality', quality: e.target.value, buffer: dataView.buffer }, [dataView.buffer]);
+        simState.physicsQuality = e.target.value;
+        stateChanged = true;
     });
 
     ui.sandboxControls.resetCameraBtn.addEventListener('click', () => {
@@ -240,14 +271,13 @@ async function main() {
     });
 
     // Initialize and start the worker
-    physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES, blackHoleMass: 400000 });
+    physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES });
 }
 
 // --- ANIMATION ---
 function animate() {
-    animationFrameId = requestAnimationFrame(animate);
-
-    if (!dataView) return; 
+    // THIS FUNCTION ONLY RENDERS. NO LOGIC, NO POSTMESSAGE, NO REQUESTANIMATIONFRAME.
+    if (!dataView) return;
 
     const now = performance.now();
     const dt = clock.getDelta();
@@ -272,16 +302,6 @@ function animate() {
         Math.sin(elapsedTime * 0.1) * MOON_ORBIT_RADIUS
     );
     
-    // Always send the buffer back to the worker for the next frame.
-    physicsWorker.postMessage({ 
-        type: 'update_moon', 
-        x: moon.position.x, 
-        y: moon.position.y, 
-        z: moon.position.z,
-        buffer: dataView.buffer
-    }, [dataView.buffer]);
-
-
     updateParticles(activeParticleCount, elapsedTime);
     updateJets(dt);
 

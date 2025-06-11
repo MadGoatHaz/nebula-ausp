@@ -91,6 +91,33 @@ function applyForces(dt) {
     }
 }
 
+function resetParticles(newParticleCount) {
+    const oldTotalCount = currentParticleCount;
+    currentParticleCount = Math.min(maxParticles, newParticleCount);
+
+    if (currentParticleCount > oldTotalCount) {
+        for (let i = oldTotalCount; i < currentParticleCount; i++) {
+            const i6 = i * STRIDE;
+            const radius = 2000 + Math.random() * 8000;
+            const theta = 2 * Math.PI * Math.random();
+            const phi = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
+            const x = radius * Math.cos(theta) * Math.cos(phi);
+            const y = radius * Math.sin(phi) * 0.5;
+            const z = radius * Math.sin(theta) * Math.cos(phi);
+            dataView[i6] = x; dataView[i6 + 1] = y; dataView[i6 + 2] = z;
+            
+            const velMag = Math.sqrt(G * blackHoleMass / radius) * (0.8 + Math.random() * 0.2);
+            const tangent = new Float32Array([-z, 0, x]);
+            const mag = Math.sqrt(tangent[0]*tangent[0] + tangent[2]*tangent[2]);
+            if (mag > 1e-9) { tangent[0] /= mag; tangent[2] /= mag; }
+            dataView[i6 + 3] = tangent[0] * velMag;
+            dataView[i6 + 4] = (Math.random() - 0.5) * 20;
+            dataView[i6 + 5] = tangent[2] * velMag;
+            masses[i] = 1 + Math.random() * 5;
+        }
+    }
+}
+
 let physicsInterval;
 
 self.onmessage = (e) => {
@@ -98,70 +125,48 @@ self.onmessage = (e) => {
 
     if (type === 'init') {
         maxParticles = data.maxParticles;
-        blackHoleMass = data.blackHoleMass;
         const buffer = new ArrayBuffer(maxParticles * STRIDE * Float32Array.BYTES_PER_ELEMENT);
         dataView = new Float32Array(buffer);
         accelerations = new Float32Array(maxParticles * 3);
         masses = new Float32Array(maxParticles);
+        
+        // Initialize with default state
+        blackHoleMass = 400000;
         masses[0] = blackHoleMass;
         masses[1] = MOON_MASS;
-        currentParticleCount = 2;
+        currentParticleCount = 2; // BH and Moon
+
         self.postMessage({ type: 'initialized', buffer }, [buffer]);
-        return; // Wait for first update call
+        return;
     }
 
     if (e.data.buffer) {
          dataView = new Float32Array(e.data.buffer);
     } else {
-        // This should not happen after initialization, but good to have a guard.
-        console.warn(`[physics.worker] Received message type '${type}' without a buffer.`);
+        console.error(`[physics.worker] Received message type '${type}' without a buffer. Halting.`);
         return;
     }
     
-    // Process commands that change state
-    switch (type) {
-        case 'set_particles':
-            const oldTotalCount = currentParticleCount;
-            const newParticleCount = Math.min(maxParticles, data.count);
-            currentParticleCount = newParticleCount;
-            if (newParticleCount > oldTotalCount) {
-                for (let i = oldTotalCount; i < newParticleCount; i++) {
-                     const i6 = i * STRIDE;
-                    const radius = 2000 + Math.random() * 8000;
-                    const theta = 2 * Math.PI * Math.random(); 
-                    const phi = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
-                    const x = radius * Math.cos(theta) * Math.cos(phi);
-                    const y = radius * Math.sin(phi) * 0.5;
-                    const z = radius * Math.sin(theta) * Math.cos(phi);
-                    dataView[i6] = x; dataView[i6 + 1] = y; dataView[i6 + 2] = z;
-                    
-                    const velMag = Math.sqrt(G * blackHoleMass / radius) * (0.8 + Math.random() * 0.2);
-                    const tangent = new Float32Array([-z, 0, x]);
-                    const mag = Math.sqrt(tangent[0]*tangent[0] + tangent[2]*tangent[2]);
-                    if (mag > 1e-9) { tangent[0] /= mag; tangent[2] /= mag; }
-                    dataView[i6 + 3] = tangent[0] * velMag;
-                    dataView[i6 + 4] = (Math.random() - 0.5) * 20;
-                    dataView[i6 + 5] = tangent[2] * velMag;
-                    masses[i] = 1 + Math.random() * 5;
-                }
-            }
-            break;
-        case 'set_mass':
-            blackHoleMass = data.mass;
-            masses[0] = blackHoleMass;
-            break;
-        case 'set_quality':
-            physicsQuality = data.quality;
-            break;
-        case 'update_moon':
-            dataView[STRIDE] = data.x;
-            dataView[STRIDE+1] = data.y;
-            dataView[STRIDE+2] = data.z;
-            break;
+    // --- State Updates from Main Thread ---
+    // These can be piggy-backed on the main 'physics_update' call.
+    if (data.hasOwnProperty('particleCount')) {
+        resetParticles(data.particleCount);
+    }
+    if (data.hasOwnProperty('bhMass')) {
+        blackHoleMass = data.bhMass;
+        masses[0] = blackHoleMass;
+    }
+    if (data.hasOwnProperty('quality')) {
+        physicsQuality = data.quality;
+    }
+    if (data.hasOwnProperty('moon_x')) {
+        dataView[STRIDE] = data.moon_x;
+        dataView[STRIDE+1] = data.moon_y;
+        dataView[STRIDE+2] = data.moon_z;
     }
 
-    // Always run physics and send data back
-    const dt = 1/60;
+    // --- Physics Calculation ---
+    const dt = 1/60; // Fixed timestep
     if(currentParticleCount > 2) {
         if (physicsQuality === 'simple') {
             updateSimple(dt);
@@ -171,6 +176,7 @@ self.onmessage = (e) => {
         applyForces(dt);
     }
     
+    // --- Always send data back ---
     self.postMessage({
         type: 'physics_update',
         buffer: dataView.buffer,
