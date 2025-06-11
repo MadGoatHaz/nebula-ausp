@@ -41,7 +41,7 @@ export async function detectCapabilities(renderer) {
         try {
             const adapter = await navigator.gpu.requestAdapter();
             if (adapter) {
-                const info = await adapter.requestAdapterInfo();
+                const info = adapter.info;
                 capabilities.gpuVendor = info.vendor;
                 capabilities.gpuRenderer = info.architecture || info.description;
                 if (adapter.features.has('ray-tracing')) {
