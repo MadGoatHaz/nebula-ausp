@@ -1,0 +1,82 @@
+[
+  {
+    "rank": 1,
+    "user": "QuantumLeaper",
+    "score": 98550,
+    "system": {
+      "gpu": "NVIDIA GeForce RTX 4090",
+      "cpuCores": 24
+    },
+    "date": "2024-06-10"
+  },
+  {
+    "rank": 2,
+    "user": "CyberNomad",
+    "score": 92100,
+    "system": {
+      "gpu": "AMD Radeon RX 7900 XTX",
+      "cpuCores": 16
+    },
+    "date": "2024-06-09"
+  },
+  {
+    "rank": 3,
+    "user": "SyntaxSlinger",
+    "score": 85400,
+    "system": {
+      "gpu": "NVIDIA GeForce RTX 4080",
+      "cpuCores": 16
+    },
+    "date": "2024-06-11"
+  },
+  {
+    "rank": 4,
+    "user": "BitBuccaneer",
+    "score": 78800,
+    "system": {
+      "gpu": "NVIDIA GeForce RTX 3080 Ti",
+      "cpuCores": 12
+    },
+    "date": "2024-06-08"
+  },
+  {
+    "rank": 5,
+    "user": "PixelPilot",
+    "score": 75250,
+    "system": {
+      "gpu": "AMD Radeon RX 6800 XT",
+      "cpuCores": 12
+    },
+    "date": "2024-06-10"
+  },
+  {
+    "rank": 6,
+    "user": "KernelCommander",
+    "score": 69900,
+    "system": {
+      "gpu": "NVIDIA GeForce RTX 3070",
+      "cpuCores": 8
+    },
+    "date": "2024-06-07"
+  },
+  {
+    "rank": 7,
+    "user": "LogicLord",
+    "score": 65100,
+    "system": {
+      "gpu": "Intel Arc A770",
+      "cpuCores": 8
+    },
+    "date": "2024-06-11"
+  },
+  {
+    "rank": 8,
+    "user": "DataDynamo",
+    "score": 58300,
+    "system": {
+      "gpu": "NVIDIA GeForce RTX 2080 Super",
+      "cpuCores": 8
+    },
+    "date": "2024-06-06"
+  }
+] 
