@@ -18,7 +18,7 @@ const ui = createUI();
 const gui = new GUI();
 const {
     scene, camera, renderer, composer, controls,
-    diskMaterial, moon, nebulaMaterials,
+    accretionDisk, diskMaterial, moon, nebulaMaterials,
     filmPass, jets, jetParticles
 } = createScene(gui);
 document.body.insertBefore(renderer.domElement, document.getElementById('ui-container'));
