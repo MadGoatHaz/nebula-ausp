@@ -26,7 +26,7 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 const clock = new THREE.Clock();
 let systemCapabilities = {};
 
-const physicsWorker = new Worker(new URL('./core/physics.worker.js?worker', import.meta.url), { type: 'module' });
+const physicsWorker = new Worker('/physics.worker.js', { type: 'module' });
 const benchmarkController = new BenchmarkController();
 const log = new Log();
 let dataView = null;
