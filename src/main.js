@@ -49,24 +49,19 @@ async function main() {
     const particleMaterial = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0.0 },
+            uSpeed: { value: 0.0 },
         },
         vertexShader: `
             attribute vec3 instanceColor;
-            attribute vec3 velocity;
             varying vec3 vColor;
-            varying float vSpeed;
+            uniform float uSpeed;
             void main() {
                 vColor = instanceColor;
-                vSpeed = length(velocity);
                 vec3 p = position;
-                vec3 viewUp = vec3(modelViewMatrix[0][1], modelViewMatrix[1][1], modelViewMatrix[2][1]);
-                vec3 viewRight = vec3(modelViewMatrix[0][0], modelViewMatrix[1][0], modelViewMatrix[2][0]);
-                vec3 stretched = p;
-                if (vSpeed > 1.0) {
-                   vec3 dir = normalize(velocity);
-                   stretched += dir * vSpeed * 0.01; // Motion blur
+                if (uSpeed > 1.0) {
+                   p.x += uSpeed * 0.01; 
                 }
-                gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(stretched, 1.0);
+                gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             }
         `,
         fragmentShader: `
@@ -205,6 +200,8 @@ function updateParticles(particleCount, elapsedTime) {
     const baseHue = 0.6; // Blueish
     const hueVariance = 0.1;
 
+    const uniforms = particleInstances.material.uniforms;
+
     for (let i = 0; i < particleCount; i++) {
         const offset = i * PARTICLE_STRIDE;
         _tempObject.position.set(dataView[offset], dataView[offset + 1], dataView[offset + 2]);
@@ -215,6 +212,8 @@ function updateParticles(particleCount, elapsedTime) {
         const vy = dataView[offset + 4];
         const vz = dataView[offset + 5];
         const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        
+        uniforms.uSpeed.value = speed;
         
         const hue = baseHue + (i % 20 / 20) * hueVariance;
         const saturation = Math.max(0.2, 1.0 - speed / 400);
