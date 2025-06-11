@@ -28,7 +28,7 @@ let systemCapabilities = {};
 
 // Construct the worker path manually to ensure it's correct on deployment
 console.log(`[main] Initializing v${packageJson.version}...`);
-const workerPath = '/nebula-ausp/physics.worker.js';
+const workerPath = 'physics.worker.js';
 let physicsWorker;
 try {
     physicsWorker = new Worker(workerPath, { type: 'module' });
