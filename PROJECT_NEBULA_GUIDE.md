@@ -124,3 +124,51 @@ To prevent repeating history, we document our critical failures and the lessons 
 3.  **Install dependencies:** `npm install`
 4.  **Run the dev server:** `npm run dev`
 5.  Open the provided URL (e.g., `http://localhost:5173`) in your browser.
+
+## Phase 1: Core Simulation & Visualization (Complete)
+
+-   **[✓]** Develop a stable `n-body` physics simulation running in a Web Worker.
+-   **[✓]** Implement a `SharedArrayBuffer` for zero-copy data transfer between the worker and the main thread.
+-   **[✓]** Create a visually appealing representation of the black hole, accretion disk, and particles using Three.js.
+-   **[✓]** Basic user controls for sandbox mode (particle count, black hole mass).
+-   **[✓]** Initial post-processing effects (bloom).
+
+## Phase 2: Benchmarking & Performance Profiling (Complete)
+
+-   **[✓]** Create a comprehensive benchmark mode to test CPU and GPU performance.
+-   **[✓]** The benchmark systematically increases particle count and records performance metrics (FPS, GPU time, CPU time).
+-   **[✓]** Implement a `Profiler` to gather detailed system information (OS, CPU, GPU, Browser, RAM).
+-   **[✓]** Add a UI to display benchmark progress and final results.
+-   **[✓]** Add a "Submit Score" feature flow (UI only, console log for now).
+
+## Phase 3: Leaderboard & Advanced Features (In Progress -> Complete)
+
+-   **[✓]** Build a static leaderboard page (`leaderboard.html`) to display top scores.
+-   **[✓]** Create a multi-page build process in Vite to handle `index.html` and `leaderboard.html`.
+-   **[✓]** Add a "Top 3 Scores" panel to the main UI, fetching data from a mock JSON file.
+-   **[✓]** Implement advanced visual shaders for particles (motion blur, shimmer).
+-   **[✓]** Add more post-processing effects (film grain, vignette) with GUI controls.
+-   **[~]** Implement a back-end service to handle score submission and retrieval. (Next Step)
+-   **[ ]** Add celestial events (e.g., a star being consumed by the black hole).
+
+## Key Learnings & Technical Resolutions
+
+1.  **GitHub Pages and `SharedArrayBuffer`:** A major finding was that GitHub Pages does **not** serve the necessary `COOP` and `COEP` headers required to enable `SharedArrayBuffer`. This was the root cause of the simulation failing to render on the live site.
+    -   **Resolution:** The entire application was refactored to remove the dependency on `SharedArrayBuffer`. The physics worker now creates and `postMessage`s a *copy* of the particle data array buffer on each tick. This has a performance cost but is necessary for compatibility with the hosting environment.
+
+2.  **Vite Multi-Page Builds:** Vite's default configuration only builds a single `index.html`.
+    -   **Resolution:** The `vite.config.js` was modified to include multiple entry points under `build.rollupOptions.input`, allowing Vite to correctly build both `index.html` and `leaderboard.html`.
+
+3.  **Worker Initialization Race Condition:** The main thread's animation loop was initially starting before the physics worker had sent its first data packet, causing rendering to fail.
+    -   **Resolution:** The animation loop (`requestAnimationFrame`) is now only started *after* the first `physics_update` message is received from the worker, ensuring data is available to render.
+
+4.  **Particle Rendering & Performance:**
+    -   The particle slider was unresponsive because the main thread and worker had different ideas about the authoritative particle count. The main thread now only renders the number of particles present in the data buffer received from the worker.
+    -   The initial particle material was swapped for a `ShaderMaterial` to implement custom effects like motion blur (stretching particles based on velocity) and making them brighter to better interact with the bloom post-processing effect.
+
+## Future Work & Next Steps
+
+-   **Leaderboard Backend:** The next major step for Phase 3 is to replace the mock JSON data with a real backend service (e.g., using Firebase, Supabase, or a custom Node.js server) to create a persistent, global leaderboard.
+-   **Celestial Events:** Introduce scripted or random events, such as a star passing too close to the black hole and being torn apart, creating a spectacular visual showcase.
+-   **Code Refinements:** Continue to refactor and optimize the codebase, particularly in the post-processing chain and particle rendering systems.
+-   **Sound Design:** Add ambient sound effects and music to enhance the atmosphere.

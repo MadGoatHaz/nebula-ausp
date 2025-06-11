@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FilmShader } from './FilmShader.js';
+import { VignetteShader } from './VignetteShader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const STAR_COUNT = 15000;
 const JET_PARTICLE_COUNT = 8000;
 
-export function createScene() {
+export function createScene(gui) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 40000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -22,7 +25,29 @@ export function createScene() {
 
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.4, 0.1));
+
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.4, 0.1);
+    composer.addPass(bloomPass);
+
+    const filmPass = new ShaderPass(FilmShader);
+    composer.addPass(filmPass);
+
+    const vignettePass = new ShaderPass(VignetteShader);
+    composer.addPass(vignettePass);
+
+    // GUI
+    const postprocessingFolder = gui.addFolder('Post-Processing');
+    postprocessingFolder.add(bloomPass, 'strength', 0.0, 3.0).name('Bloom');
+    
+    const filmFolder = postprocessingFolder.addFolder('Film Grain');
+    filmFolder.add(filmPass.uniforms.nIntensity, 'value', 0, 1).name('Noise Intensity');
+    filmFolder.add(filmPass.uniforms.sIntensity, 'value', 0, 1).name('Scanline Intensity');
+    filmFolder.add(filmPass.uniforms.sCount, 'value', 0, 4096).name('Scanline Count');
+    filmPass.uniforms.grayscale.value = 0;
+
+    const vignetteFolder = postprocessingFolder.addFolder('Vignette');
+    vignetteFolder.add(vignettePass.uniforms.offset, 'value', 0, 2).name('Offset');
+    vignetteFolder.add(vignettePass.uniforms.darkness, 'value', 0, 2).name('Darkness');
 
     const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
     scene.add(blackHoleMesh);
@@ -186,5 +211,5 @@ export function createScene() {
     }
     window.addEventListener('resize', onResize);
 
-    return { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials };
+    return { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials, filmPass, vignettePass };
 }
