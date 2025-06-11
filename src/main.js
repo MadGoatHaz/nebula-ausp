@@ -7,6 +7,7 @@ import { detectCapabilities } from './core/profiler.js';
 import * as THREE from 'three';
 import { GUI } from 'lil-gui';
 import packageJson from '../package.json';
+import PhysicsWorker from './physics/physics.worker.js?worker';
 
 // --- CONSTANTS ---
 const PARTICLE_STRIDE = 8; // (x, y, z, vx, vy, vz, size, age)
@@ -26,7 +27,7 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 const clock = new THREE.Clock();
 let systemCapabilities = {};
 
-const physicsWorker = new Worker('/physics.worker.js', { type: 'module' });
+const physicsWorker = new PhysicsWorker();
 const benchmarkController = new BenchmarkController();
 const log = new Log();
 let dataView = null;
@@ -40,7 +41,7 @@ const _tempColor = new THREE.Color();
 
 // --- MAIN ---
 async function main() {
-    ui.version.textContent = `v${packageJson.version}`;
+    ui.versionInfo.textContent = `v${packageJson.version}`;
     systemCapabilities = await detectCapabilities(renderer);
     console.log("System Capabilities:", systemCapabilities);
     

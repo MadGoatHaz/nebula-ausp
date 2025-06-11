@@ -232,3 +232,16 @@ canvas {
 .top-score-entry .score {
     font-weight: 700;
 }
+
+#version-info {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.75);
+    padding: 5px 10px;
+    border-radius: 3px;
+    z-index: 1000;
+}
