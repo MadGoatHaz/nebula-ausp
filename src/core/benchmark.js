@@ -1,6 +1,6 @@
 export const State = { IDLE: 0, MAX_Q_SEARCH: 1, GAUNTLET_GPU: 2, GAUNTLET_CPU: 3, GAUNTLET_COMBINED: 4, COMPLETE: 5 };
 const GAUNTLET_STAGE_DURATION = 10000;
-const MAX_Q_SEARCH_DURATION = 3000;
+const MAX_Q_SEARCH_DURATION = 1500;
 const TRIM_PERCENTAGE = 0.15;
 
 function calculateTrimmedMean(data) {
