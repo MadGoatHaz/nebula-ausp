@@ -26,21 +26,7 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 const clock = new THREE.Clock();
 let systemCapabilities = {};
 
-// Construct the worker path manually to ensure it's correct on deployment
-console.log(`[main] Initializing v${packageJson.version}...`);
-const workerPath = 'physics.worker.js';
-let physicsWorker;
-try {
-    physicsWorker = new Worker(workerPath, { type: 'module' });
-    console.log('[main] Worker object created successfully.');
-    physicsWorker.onerror = (error) => {
-        console.error('[main] Worker error:', error.message);
-        alert(`A critical error occurred with the physics worker: ${error.message}`);
-    };
-} catch (error) {
-    console.error('[main] Failed to create Worker:', error);
-    alert('Failed to initialize the physics engine. The application cannot start.');
-}
+const physicsWorker = new Worker(new URL('./physics/physics.worker.js', import.meta.url), { type: 'module' });
 
 const benchmarkController = new BenchmarkController();
 const log = new Log();

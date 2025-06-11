@@ -1,6 +1,6 @@
 # Project Nebula: Definitive Handoff & Developer's Guide
-**Version:** v99 (Stable Baseline)
-**Status:** Phase 1 Complete. Ready for new development.
+**Version:** v100 (Stable Baseline, Post-Fixes)
+**Status:** Phase 2 Complete. Ready for new development.
 
 ## 1. Executive Summary
 
@@ -94,20 +94,24 @@ To prevent repeating history, we document our critical failures and the lessons 
 
 *   **Case File #E: The `SharedArrayBuffer` GitHub Pages Failure**
     *   **Symptom:** Application worked perfectly on the local dev server but showed a black screen and failed to initialize when deployed to GitHub Pages.
-    *   **Root Cause:** `SharedArrayBuffer` requires specific `COOP`/`COEP` security headers to function. GitHub Pages does not serve these headers and does not allow them to be configured. This caused the physics worker initialization to fail.
-    *   **Lesson:** GitHub Pages is a simple static host. For features requiring specific server headers, a different hosting provider (like Vercel, Netlify, or a custom server) is necessary. The application was refactored to not use `SharedArrayBuffer` to ensure compatibility.
+    *   **Root Cause:** `SharedArrayBuffer` requires specific `COOP`/`COEP` security headers to function. GitHub Pages does not serve these headers and does not allow them to be configured.
+    *   **Lesson:** GitHub Pages is a simple static host. For features requiring specific server headers, a different hosting provider or a non-`SharedArrayBuffer` approach is needed.
+
+*   **Case File #F: The Vite Worker Build Failure**
+    *   **Symptom:** The 3D animation would not play on the live GitHub Pages deployment, though it worked locally. The browser console showed the main script was waiting for a message from the physics worker that never arrived.
+    *   **Root Cause:** A series of incorrect attempts to bundle the web worker for production. Manual path construction and placing the worker in the `/public` directory led to a state where the browser was either looking for the worker in the wrong place or loading a stale, incorrect version.
+    *   **Lesson:** Stick to the standards. The Vite build system is designed to handle web workers correctly out of the box. The definitive solution was to revert all workarounds and use the standard, modern `new Worker(new URL('./path/to/worker.js', import.meta.url))` syntax. This allows Vite to correctly resolve and bundle the worker for any environment.
 
 ## 6. Future Roadmap
 
-### Phase 2: Leaderboard & Data Integration (Next)
-*   **Status:** ✅ (Frontend Complete)
-*   **Objective:** Create the backend and frontend for a live, public leaderboard.
+### Phase 2: Leaderboard & Data Integration (✅ Complete)
+*   **Status:** ✅ (Complete)
+*   **Objective:** Create a backend and frontend for a live, public leaderboard.
 *   **Key Tasks:**
     - [x] Implement a robust `SystemInfo` collector.
     - [x] Build a "Submit Score" UI flow.
-    - [x] Build a public leaderboard page (using mock data).
-    - [x] Display Top 3 scores on the main application page.
-    - [ ] Build a backend API and database for submissions.
+    - [x] Build a public leaderboard page.
+    - [x] Build a backend API and database (JSON file-based) for submissions.
 
 ### Phase 3: Capability-Aware Bonus Tests
 *   **Status:** 🔲 (Planned)
@@ -148,13 +152,13 @@ To prevent repeating history, we document our critical failures and the lessons 
 -   **[✓]** Add a "Top 3 Scores" panel to the main UI, fetching data from a mock JSON file.
 -   **[✓]** Implement advanced visual shaders for particles (motion blur, shimmer).
 -   **[✓]** Add more post-processing effects (film grain, vignette) with GUI controls.
--   **[~]** Implement a back-end service to handle score submission and retrieval. (Next Step)
+-   **[✓]** Implement a back-end service to handle score submission and retrieval.
 -   **[ ]** Add celestial events (e.g., a star being consumed by the black hole).
 
 ## Key Learnings & Technical Resolutions
 
-1.  **GitHub Pages and `SharedArrayBuffer`:** A major finding was that GitHub Pages does **not** serve the necessary `COOP` and `COEP` headers required to enable `SharedArrayBuffer`. This was the root cause of the simulation failing to render on the live site.
-    -   **Resolution:** The entire application was refactored to remove the dependency on `SharedArrayBuffer`. The physics worker now creates and `postMessage`s a *copy* of the particle data array buffer on each tick. This has a performance cost but is necessary for compatibility with the hosting environment.
+1.  **GitHub Pages and Web Workers:** The most significant recent challenge was ensuring the `physics.worker.js` file was correctly bundled and loaded on the live GitHub Pages deployment.
+    *   **Resolution:** After several failed workarounds, the solution was to use the standard ES module syntax for web workers: `new Worker(new URL('./path/to/worker.js', import.meta.url))`. This delegates the entire bundling and path resolution process to Vite, which handles it correctly for both `npm run dev` and `npm run build`. Manual pathing or using the `/public` directory should be avoided as it can lead to hard-to-debug inconsistencies between environments.
 
 2.  **Vite Multi-Page Builds:** Vite's default configuration only builds a single `index.html`.
     -   **Resolution:** The `vite.config.js` was modified to include multiple entry points under `build.rollupOptions.input`, allowing Vite to correctly build both `index.html` and `leaderboard.html`.
