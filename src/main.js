@@ -95,23 +95,24 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
-        if (e.data.buffer) {
-            // Always update the dataView with the returned buffer
-            dataView = new Float32Array(e.data.buffer);
-            activeParticleCount = e.data.particleCount;
-            stats.consumed.value = e.data.consumedParticles;
-        }
-
         switch (e.data.type) {
             case 'initialized':
-                if (!animationFrameId) {
-                    console.log('[main] Worker initialized. Starting animation loop...');
-                    animationFrameId = requestAnimationFrame(animate);
+                if (e.data.buffer) {
+                    dataView = new Float32Array(e.data.buffer);
+                    if (!animationFrameId) {
+                        console.log('[main] Worker initialized. Starting animation loop...');
+                        animationFrameId = requestAnimationFrame(animate);
+                    }
                 }
                 break;
             case 'physics_update':
-                // The main logic is now simply to get the buffer back and continue the loop.
-                // The animate function will post the next message.
+                if (e.data.buffer) {
+                    // The worker has finished its step and sent the buffer back.
+                    dataView = new Float32Array(e.data.buffer);
+                    // These assignments belong here, where we know these properties exist.
+                    activeParticleCount = e.data.particleCount;
+                    stats.consumed.value = e.data.consumedParticles;
+                }
                 break;
             case 'worker_error':
                 console.error("Received error from worker:", e.data.error);
