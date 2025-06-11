@@ -143,6 +143,7 @@ self.onmessage = (e) => {
         masses[1] = MOON_MASS;
         currentParticleCount = 2;
         console.log('[physics.worker] Initialization complete. Starting physics loop.');
+        self.postMessage({ type: 'initialized', buffer: dataView.buffer });
         startPhysicsLoop();
     } else if (type === 'set_particles') {
         const newParticleCount = Math.min(maxParticles - 2, data.count);

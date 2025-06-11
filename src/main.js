@@ -84,13 +84,19 @@ async function main() {
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
         switch (e.data.type) {
-            case 'physics_update':
+            case 'initialized':
                 if (e.data.buffer) {
                     dataView = new Float32Array(e.data.buffer);
                     if (!animationFrameId) {
-                       console.log('[main] First data received. Starting animation loop...');
-                       animationFrameId = requestAnimationFrame(animate);
+                        console.log('[main] Worker initialized. Starting animation loop...');
+                        animationFrameId = requestAnimationFrame(animate);
+                        physicsWorker.postMessage({ type: 'set_particles', count: 10000 });
                     }
+                }
+                break;
+            case 'physics_update':
+                if (e.data.buffer) {
+                    dataView = new Float32Array(e.data.buffer);
                 }
                 break;
             case 'worker_error':
@@ -164,7 +170,6 @@ async function main() {
 
     // Initialize and start the worker
     physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES, blackHoleMass: 400000 });
-    physicsWorker.postMessage({ type: 'set_particles', count: 10000 });
 }
 
 // --- ANIMATION ---
