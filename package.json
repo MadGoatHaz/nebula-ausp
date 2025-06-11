@@ -1,14 +1,14 @@
 {
   "name": "nebula-ausp-fresh",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "homepage": "https://MadGoatHaz.github.io/nebula-ausp",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "npm version patch --no-git-tag-version && vite build && gh-pages -d dist",
+    "deploy": "npm version minor --no-git-tag-version && vite build && gh-pages -d dist && git push --follow-tags",
     "server": "node server.js"
   },
   "devDependencies": {

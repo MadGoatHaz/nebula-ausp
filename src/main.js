@@ -83,7 +83,6 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
-        // console.log('[main] Received message from worker:', e.data.type);
         switch (e.data.type) {
             case 'physics_update':
                 if (e.data.buffer) {
@@ -93,6 +92,10 @@ async function main() {
                        animationFrameId = requestAnimationFrame(animate);
                     }
                 }
+                break;
+            case 'worker_error':
+                console.error("Received error from worker:", e.data.error);
+                alert(`Physics worker crashed!\n\nMessage: ${e.data.error.message}`);
                 break;
             case 'benchmark_update':
                 benchmarkController.handleWorkerUpdate(e.data.payload, log);

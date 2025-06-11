@@ -95,23 +95,34 @@ let physicsInterval;
 function startPhysicsLoop() {
     if (physicsInterval) clearInterval(physicsInterval);
     physicsInterval = setInterval(() => {
-        const physicsStartTime = performance.now();
-        if (currentParticleCount > 2) {
-            const dt = 1/60;
-            if (physicsQuality === 'simple') {
-                updateSimple(dt);
-            } else {
-                updateNBody(dt, physicsQuality === 'extreme');
+        try {
+            const physicsStartTime = performance.now();
+            if (currentParticleCount > 2) {
+                const dt = 1/60;
+                if (physicsQuality === 'simple') {
+                    updateSimple(dt);
+                } else {
+                    updateNBody(dt, physicsQuality === 'extreme');
+                }
+                applyForces(dt);
             }
-            applyForces(dt);
+            const physicsStepTime = performance.now() - physicsStartTime;
+            self.postMessage({ 
+                type: 'physics_update', 
+                physicsStepTime, 
+                consumedParticles,
+                data: dataView.buffer
+            });
+        } catch (error) {
+            self.postMessage({
+                type: 'worker_error',
+                error: {
+                    message: error.message,
+                    stack: error.stack,
+                }
+            });
+            clearInterval(physicsInterval); // Stop the loop on error
         }
-        const physicsStepTime = performance.now() - physicsStartTime;
-        self.postMessage({ 
-            type: 'physics_update', 
-            physicsStepTime, 
-            consumedParticles,
-            data: dataView.buffer
-        });
     }, 1000 / 60);
 }
 
