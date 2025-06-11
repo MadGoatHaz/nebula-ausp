@@ -7,7 +7,6 @@ import { detectCapabilities } from './core/profiler.js';
 import * as THREE from 'three';
 import { GUI } from 'lil-gui';
 import packageJson from '../package.json';
-import PhysicsWorker from './physics/physics.worker.js?worker';
 
 // --- CONSTANTS ---
 const PARTICLE_STRIDE = 8; // (x, y, z, vx, vy, vz, size, age)
@@ -27,7 +26,11 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 const clock = new THREE.Clock();
 let systemCapabilities = {};
 
-const physicsWorker = new PhysicsWorker();
+// Construct the worker path manually to ensure it's correct on deployment
+const isProduction = import.meta.env.PROD;
+const workerPath = isProduction ? '/nebula-ausp/physics.worker.js' : './physics/physics.worker.js';
+const physicsWorker = new Worker(workerPath, { type: 'module' });
+
 const benchmarkController = new BenchmarkController();
 const log = new Log();
 let dataView = null;
