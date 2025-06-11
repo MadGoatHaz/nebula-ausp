@@ -5,8 +5,10 @@ import { BenchmarkController, State } from './core/benchmark.js';
 import { Log } from './core/log.js';
 import { detectCapabilities } from './core/profiler.js';
 import * as THREE from 'three';
+import packageJson from '../package.json';
 
 // --- CONSTANTS ---
+const APP_VERSION = packageJson.version;
 const MAX_PARTICLES = 150000;
 const PARTICLE_STRIDE = 6;
 const PARTICLE_DEAD_FLAG = 99998;
@@ -44,19 +46,61 @@ function initializeSimulation(initialParticleCount = 0) {
     return new Promise((resolve) => {
         logMessage(`Initializing simulation with ${initialParticleCount} particles...`, "warn");
         if (particleInstances) scene.remove(particleInstances);
-        const particleMaterial = new THREE.MeshStandardMaterial({ emissive: 0xffffff, vertexColors: true });
+
+        const particleMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+            },
+            vertexShader: `
+                uniform float uTime;
+                attribute vec3 instanceColor;
+                attribute vec3 instanceVelocity;
+                varying vec3 vColor;
+
+                void main() {
+                    vColor = instanceColor;
+                    vec3 p = position;
+
+                    // Shimmer
+                    float shimmer = sin(uTime * 15.0 + float(gl_InstanceID)) * 0.3 + 0.7;
+                    p *= shimmer;
+
+                    // Motion Blur
+                    vec3 cameraRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+                    vec3 cameraUp = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+                    vec3 velocity_view = cameraRight * instanceVelocity.x + cameraUp * instanceVelocity.y;
+                    float speed = length(instanceVelocity);
+                    p.xy += normalize(velocity_view.xy) * speed * 0.005;
+
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(p, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    gl_FragColor = vec4(vColor, 1.0);
+                }
+            `
+        });
+
         particleInstances = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5, 0), particleMaterial, MAX_PARTICLES);
+        // We need a new buffer attribute for the velocity of each instance
+        particleInstances.geometry.setAttribute('instanceVelocity', new THREE.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3));
         particleInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         scene.add(particleInstances);
         
+        let isInitialized = false;
         physicsWorker.onmessage = (e) => {
             if (e.data.type === 'physics_update') {
                 dataView = new Float32Array(e.data.data);
                 physicsTime = e.data.physicsStepTime;
                 consumedParticles = e.data.consumedParticles;
-            } else if (e.data.type === 'ready') {
-                logMessage(`Simulation initialized.`, 'success');
-                resolve();
+                
+                if (!isInitialized) {
+                    isInitialized = true;
+                    logMessage(`Simulation initialized.`, 'success');
+                    resolve();
+                }
             }
         };
 
@@ -110,10 +154,10 @@ ui.benchmarkBtn.addEventListener('click', async () => {
         ui.downloadLogBtn.disabled = true;
         Object.values(ui.sandboxControls).forEach(el => el.disabled = true);
         
-        const resolution = ui.sandboxControls.resolution.value;
+        const resolution = `${window.innerWidth}x${window.innerHeight}`;
         const sceneElements = { composer, accretionDisk, nebulaMaterials };
         
-        await benchmarkController.start(log, logMessage, physicsWorker, sceneElements, resolution, renderer);
+        benchmarkController.start(log, logMessage, physicsWorker, sceneElements, resolution, systemCapabilities);
     } else {
         benchmarkController.cancel(logMessage);
     }
@@ -186,8 +230,11 @@ const clock = new THREE.Clock();
 const dummy = new THREE.Object3D();
 const color = new THREE.Color();
 
-function updateParticles(particleCount) {
+function updateParticles(particleCount, elapsedTime) {
     if (!particleInstances || !dataView) return;
+
+    particleInstances.material.uniforms.uTime.value = elapsedTime;
+    const velocityAttribute = particleInstances.geometry.attributes.instanceVelocity;
 
     particleInstances.count = particleCount;
     for (let i = 0; i < particleCount; i++) {
@@ -198,6 +245,7 @@ function updateParticles(particleCount) {
             dummy.scale.set(1, 1, 1);
             dummy.position.set(dataView[i6], dataView[i6 + 1], dataView[i6 + 2]);
             const vx = dataView[i6 + 3], vy = dataView[i6 + 4], vz = dataView[i6 + 5];
+            velocityAttribute.setXYZ(i, vx, vy, vz);
             const speedSq = vx * vx + vy * vy + vz * vz;
             const colorT = Math.min(1, Math.sqrt(speedSq) / 250);
             color.setHSL(0.1 + colorT * 0.1, 1.0, 0.5 + colorT * 0.4);
@@ -207,6 +255,7 @@ function updateParticles(particleCount) {
         particleInstances.setMatrixAt(i, dummy.matrix);
     }
     particleInstances.instanceMatrix.needsUpdate = true;
+    velocityAttribute.needsUpdate = true;
     if (particleInstances.instanceColor) {
         particleInstances.instanceColor.needsUpdate = true;
     }
@@ -260,7 +309,7 @@ function animate() {
     const elapsedTime = clock.getElapsedTime();
 
     const particleCount = (benchmarkController.state === State.IDLE)
-        ? parseInt(ui.sandboxControls.particles.value)
+        ? (parseInt(ui.sandboxControls.particles.value) + 2) // Ensure sandbox reflects worker count
         : benchmarkController.currentParticleCount;
     
     diskMaterial.uniforms.uTime.value = elapsedTime;
@@ -272,7 +321,7 @@ function animate() {
     );
     physicsWorker.postMessage({ type: 'update_moon', x: moon.position.x, y: moon.position.y, z: moon.position.z });
 
-    updateParticles(particleCount);
+    updateParticles(particleCount, elapsedTime);
     updateJets(dt);
     updateCamera(elapsedTime);
     
@@ -290,6 +339,7 @@ function animate() {
 // --- INITIAL SETUP ---
 async function main() {
     logMessage("Application starting...", "info");
+    ui.versionInfo.textContent = `v${APP_VERSION}`;
     
     logMessage("Detecting system capabilities...", "warn");
     systemCapabilities = await detectCapabilities(renderer);

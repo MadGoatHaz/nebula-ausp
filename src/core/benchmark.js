@@ -39,7 +39,7 @@ export class BenchmarkController {
         this.currentParticleCount = 0;
     }
 
-    async start(log, logMessage, physicsWorker, sceneElements, resolution, renderer) {
+    start(log, logMessage, physicsWorker, sceneElements, resolution, systemCapabilities) {
         this.reset();
         this.log = log;
         this.logMessage = logMessage;
@@ -47,7 +47,7 @@ export class BenchmarkController {
         this.sceneElements = sceneElements;
 
         this.logMessage("Starting Comprehensive Benchmark...", 'warn');
-        await this.log.start(resolution, renderer);
+        this.log.start(systemCapabilities, resolution);
         
         this.runMaxQSearch();
     }

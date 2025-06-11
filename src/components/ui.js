@@ -52,11 +52,13 @@ export function createUI() {
             <div class="info-box">
                 <strong>UI Panels:</strong> Both the control panel and the log panel are scrollable if their content is too long.
             </div>
+            <div id="version-info" style="font-size: 10px; color: #777; margin-top: 10px; text-align: right;"></div>
         </details>
     `;
 
     return {
         logPanel: document.getElementById('log-panel-container'),
+        versionInfo: document.getElementById('version-info'),
         benchmarkStatusEl: document.getElementById('benchmark-status'),
         benchmarkBtn: document.getElementById('benchmark-btn'),
         downloadLogBtn: document.getElementById('download-log-btn'),
