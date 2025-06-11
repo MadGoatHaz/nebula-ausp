@@ -240,7 +240,15 @@ async function main() {
         } else {
             const resolution = `${renderer.domElement.width}x${renderer.domElement.height}`;
             const sceneElements = { composer, accretionDisk, nebulaMaterials };
-            benchmarkController.start(log, logFunc, physicsWorker, sceneElements, resolution, systemCapabilities);
+            
+            // This is the new callback function for the benchmark controller
+            const onBenchmarkStateChange = (newState) => {
+                simState.physicsQuality = newState.quality;
+                simState.particleCount = newState.particleCount;
+                stateChanged = true;
+            };
+
+            benchmarkController.start(log, logFunc, onBenchmarkStateChange, sceneElements, resolution, systemCapabilities);
             ui.benchmarkBtn.textContent = 'Cancel Benchmark';
             // Disable all sandbox controls
             for (const key in ui.sandboxControls) {

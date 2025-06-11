@@ -38,13 +38,14 @@ export class BenchmarkController {
         this.physicsWorker = null;
         this.sceneElements = null;
         this.currentParticleCount = 0;
+        this.onStateChange = () => {}; // Callback for state changes
     }
 
-    start(log, logMessage, physicsWorker, sceneElements, resolution, systemCapabilities) {
+    start(log, logMessage, onStateChange, sceneElements, resolution, systemCapabilities) {
         this.reset();
         this.log = log;
         this.logMessage = logMessage;
-        this.physicsWorker = physicsWorker;
+        this.onStateChange = onStateChange;
         this.sceneElements = sceneElements;
 
         this.logMessage("Starting Comprehensive Benchmark...", 'warn');
@@ -58,9 +59,7 @@ export class BenchmarkController {
         this.currentParticleCount = count;
         this.logMessage(`[Max-Q Search] Testing ${count} particles...`, 'info');
         
-        this.physicsWorker.postMessage({ type: 'reset' });
-        this.physicsWorker.postMessage({ type: 'set_quality', quality: 'complex' });
-        this.physicsWorker.postMessage({ type: 'set_particles', count });
+        this.onStateChange({ quality: 'complex', particleCount: count });
         
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -75,9 +74,7 @@ export class BenchmarkController {
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        this.physicsWorker.postMessage({ type: 'reset' });
-        this.physicsWorker.postMessage({ type: 'set_quality', quality: 'simple' });
-        this.physicsWorker.postMessage({ type: 'set_particles', count: this.maxQValue });
+        this.onStateChange({ quality: 'simple', particleCount: this.maxQValue });
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -92,9 +89,7 @@ export class BenchmarkController {
         this.sceneElements.accretionDisk.visible = false;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = false);
 
-        this.physicsWorker.postMessage({ type: 'reset' });
-        this.physicsWorker.postMessage({ type: 'set_quality', quality: 'extreme' });
-        this.physicsWorker.postMessage({ type: 'set_particles', count: this.maxQValue });
+        this.onStateChange({ quality: 'extreme', particleCount: this.maxQValue });
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -109,9 +104,7 @@ export class BenchmarkController {
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        this.physicsWorker.postMessage({ type: 'reset' });
-        this.physicsWorker.postMessage({ type: 'set_quality', quality: 'complex' });
-        this.physicsWorker.postMessage({ type: 'set_particles', count: this.maxQValue });
+        this.onStateChange({ quality: 'complex', particleCount: this.maxQValue });
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
