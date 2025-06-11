@@ -175,10 +175,29 @@ async function main() {
     });
 
     ui.benchmarkBtn.addEventListener('click', () => {
-        if (benchmarkController.isRunning) {
-            // This would be a 'Stop' button, logic to be added.
+        const logFunc = (message, level = 'info') => {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${level}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            ui.logPanel.prepend(logEntry);
+        };
+
+        if (benchmarkController.state !== State.IDLE) {
+            benchmarkController.cancel(logFunc);
+            ui.benchmarkBtn.textContent = 'Run Benchmark';
+            // Re-enable all sandbox controls
+            for (const key in ui.sandboxControls) {
+                ui.sandboxControls[key].disabled = false;
+            }
         } else {
-            benchmarkController.start(physicsWorker, ui.sandboxControls);
+            const resolution = `${renderer.domElement.width}x${renderer.domElement.height}`;
+            const sceneElements = { composer, accretionDisk, nebulaMaterials };
+            benchmarkController.start(log, logFunc, physicsWorker, sceneElements, resolution, systemCapabilities);
+            ui.benchmarkBtn.textContent = 'Cancel Benchmark';
+            // Disable all sandbox controls
+            for (const key in ui.sandboxControls) {
+                ui.sandboxControls[key].disabled = true;
+            }
         }
     });
 
@@ -215,6 +234,9 @@ function animate() {
     const dt = clock.getDelta();
     const elapsedTime = clock.getElapsedTime();
 
+    // The particleCount is now received from the worker, not calculated from the buffer length.
+    benchmarkController.update(performance.now());
+    
     diskMaterial.uniforms.uTime.value = elapsedTime;
     nebulaMaterials.forEach(m => m.uniforms.uTime.value = elapsedTime);
     if (filmPass) filmPass.uniforms.time.value = elapsedTime;
