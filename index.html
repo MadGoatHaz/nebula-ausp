@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nebula - The Universal System Profiler</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/nebula-ausp/assets/index-CiJZGplQ.js"></script>
-    <link rel="stylesheet" crossorigin href="/nebula-ausp/assets/index-COFvP49B.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/nebula-ausp/assets/index-BL0KAKis.js"></script>
+    <link rel="stylesheet" crossorigin href="/nebula-ausp/assets/index-DcQ7lRgh.css">
   </head>
   <body>
     <!-- The 3D Canvas will be appended here first by main.js -->
@@ -18,5 +18,19 @@
             <!-- Log messages will be injected here by main.js -->
         </div>
     </div>
+
+    <div id="submission-modal-backdrop" class="hidden">
+        <div id="submission-modal">
+            <h2>Benchmark Complete!</h2>
+            <p>Here is your final score and a summary of your system's performance.</p>
+            <div id="modal-score-summary"></div>
+            <div id="modal-system-summary"></div>
+            <div id="submission-buttons">
+                <button id="modal-cancel-btn">Cancel</button>
+                <button id="modal-submit-btn">Submit to Leaderboard</button>
+            </div>
+        </div>
+    </div>
+
   </body>
 </html>
