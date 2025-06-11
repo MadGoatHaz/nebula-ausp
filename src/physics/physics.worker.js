@@ -93,6 +93,7 @@ function applyForces(dt) {
 
 let physicsInterval;
 function startPhysicsLoop() {
+    console.log('[physics.worker] startPhysicsLoop() called.');
     if (physicsInterval) clearInterval(physicsInterval);
     physicsInterval = setInterval(() => {
         try {
@@ -128,7 +129,10 @@ function startPhysicsLoop() {
 
 self.onmessage = (e) => {
     const { type, ...data } = e.data;
+    console.log(`[physics.worker] onmessage received: ${type}`);
+
     if (type === 'init') {
+        console.log('[physics.worker] Initializing...');
         maxParticles = data.maxParticles; 
         blackHoleMass = data.blackHoleMass;
         const buffer = new ArrayBuffer(maxParticles * STRIDE * Float32Array.BYTES_PER_ELEMENT);
@@ -138,6 +142,7 @@ self.onmessage = (e) => {
         masses[0] = blackHoleMass;
         masses[1] = MOON_MASS;
         currentParticleCount = 2;
+        console.log('[physics.worker] Initialization complete. Starting physics loop.');
         startPhysicsLoop();
     } else if (type === 'set_particles') {
         const newParticleCount = Math.min(maxParticles - 2, data.count);
