@@ -1,5 +1,6 @@
 export const State = { IDLE: 0, MAX_Q_SEARCH: 1, GAUNTLET_GPU: 2, GAUNTLET_CPU: 3, GAUNTLET_COMBINED: 4, COMPLETE: 5 };
-const STAGE_DURATION = 10000;
+const GAUNTLET_STAGE_DURATION = 10000;
+const MAX_Q_SEARCH_DURATION = 3000;
 const TRIM_PERCENTAGE = 0.15;
 
 function calculateTrimmedMean(data) {
@@ -119,7 +120,9 @@ export class BenchmarkController {
     update(currentTime) {
         if (this.state === State.IDLE || this.state === State.COMPLETE) return;
 
-        if (currentTime - this.stageStartTime >= STAGE_DURATION) {
+        const duration = this.state === State.MAX_Q_SEARCH ? MAX_Q_SEARCH_DURATION : GAUNTLET_STAGE_DURATION;
+
+        if (currentTime - this.stageStartTime >= duration) {
             this.evaluateStage();
         }
     }
@@ -202,10 +205,13 @@ export class BenchmarkController {
     }
 
     getStatus() {
-        const timeLeft = Math.max(0, (STAGE_DURATION - (performance.now() - this.stageStartTime)) / 1000).toFixed(1);
+        if (this.state === State.IDLE || this.state === State.COMPLETE) {
+            return this.state === State.IDLE ? "Ready for Comprehensive Test." : `Test Complete!<div class="final-score">Final Score: <strong>${this.results.finalScore}</strong></div>`;
+        }
+
+        const duration = this.state === State.MAX_Q_SEARCH ? MAX_Q_SEARCH_DURATION : GAUNTLET_STAGE_DURATION;
+        const timeLeft = Math.max(0, (duration - (performance.now() - this.stageStartTime)) / 1000).toFixed(1);
         switch(this.state) {
-            case State.IDLE: return "Ready for Comprehensive Test.";
-            case State.COMPLETE: return `Test Complete!<div class="final-score">Final Score: <strong>${this.results.finalScore}</strong></div>`;
             case State.MAX_Q_SEARCH: return `<b>Calibrating... (1/4)</b><br>Finding Max Particles<br>Time left: ${timeLeft}s`;
             case State.GAUNTLET_GPU: return `<b>GPU Stress Test (2/4)</b><br>${this.maxQValue} Particles<br>Time left: ${timeLeft}s`;
             case State.GAUNTLET_CPU: return `<b>CPU Stress Test (3/4)</b><br>${this.maxQValue} Particles<br>Time left: ${timeLeft}s`;
