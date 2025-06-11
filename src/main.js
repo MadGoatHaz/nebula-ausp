@@ -173,8 +173,9 @@ async function main() {
         }
     });
 
-    physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES });
-    physicsWorker.postMessage({ type: 'set_particles', count: parseInt(ui.sandboxControls.particles.value) });
+    // Initialize and start the worker
+    physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES, blackHoleMass: 400000 });
+    physicsWorker.postMessage({ type: 'set_particles', count: 10000 });
 }
 
 // --- ANIMATION ---
