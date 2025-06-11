@@ -7,6 +7,7 @@ import { detectCapabilities } from './core/profiler.js';
 import * as THREE from 'three';
 import { GUI } from 'lil-gui';
 import packageJson from '../package.json';
+import PhysicsWorker from './physics/physics.worker.js?worker';
 
 // --- CONSTANTS ---
 const PARTICLE_STRIDE = 8; // (x, y, z, vx, vy, vz, size, age)
@@ -26,19 +27,16 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 const clock = new THREE.Clock();
 let systemCapabilities = {};
 
-// Construct the worker path manually to ensure it's correct on deployment
-const isProduction = import.meta.env.PROD;
-const workerPath = isProduction ? '/nebula-ausp/physics.worker.js' : new URL('./physics/physics.worker.js', import.meta.url);
-console.log(`[main] Initializing... Production: ${isProduction}, Worker Path:`, workerPath);
+console.log('[main] Initializing...');
 
 let physicsWorker;
 try {
-    physicsWorker = new Worker(workerPath, { type: 'module' });
-    console.log('[main] Worker object created.');
+    physicsWorker = new PhysicsWorker();
+    console.log('[main] Worker object created successfully.');
 
     physicsWorker.onerror = (error) => {
         console.error('[main] Worker error:', error);
-        alert(`A critical error occurred with the physics worker. Please check the console for details. Error: ${error.message}`);
+        alert(`A critical error occurred with the physics worker. Please check the console. Error: ${error.message}`);
     };
 } catch (error) {
     console.error('[main] Failed to create Worker:', error);
@@ -100,12 +98,12 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
-        console.log('[main] Received message from worker:', e.data.type);
         switch (e.data.type) {
             case 'physics_update':
                 if (e.data.buffer) {
                     dataView = new Float32Array(e.data.buffer);
                     if (!animationFrameId) {
+                       console.log('[main] First data received. Starting animation loop...');
                        animationFrameId = requestAnimationFrame(animate);
                     }
                 }
