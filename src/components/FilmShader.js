@@ -56,6 +56,11 @@ const FilmShader = {
 
 		varying vec2 vUv;
 
+		// A simple pseudo-random function but good enough for this effect.
+		float rand(vec2 co){
+			return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+		}
+
 		void main() {
 
 			// sample the source
