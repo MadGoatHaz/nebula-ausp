@@ -57,11 +57,15 @@ export function createUI() {
         <details>
             <summary style="cursor:pointer; font-size: 13px; margin-top: 15px;">Info / Help</summary>
             <div class="info-box">
-                <strong>UI Panels:</strong> Both the control panel and the log panel are scrollable if their content is too long.<br>
-                <a href="./leaderboard.html" style="color: var(--primary-color);">View Public Leaderboard</a>
+                <strong>Welcome to the Nebula AUSP!</strong><br>
+                This tool runs a series of tests to profile your system's performance.<br><br>
+                - Use the <strong>Sandbox Controls</strong> to experiment freely.<br>
+                - Run the <strong>Comprehensive Benchmark</strong> for a standardized score.<br>
+                - View the <strong>Full Leaderboard</strong> to see how your system compares.<br>
+                - After a benchmark, you can <strong>Submit Score</strong> to the public leaderboard.
             </div>
-            <div id="version-info" style="font-size: 10px; color: #777; margin-top: 10px; text-align: right;"></div>
         </details>
+        <div id="version-info"></div>
     `;
 
     return {

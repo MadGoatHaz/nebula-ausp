@@ -28,8 +28,22 @@ let systemCapabilities = {};
 
 // Construct the worker path manually to ensure it's correct on deployment
 const isProduction = import.meta.env.PROD;
-const workerPath = isProduction ? '/nebula-ausp/physics.worker.js' : './physics/physics.worker.js';
-const physicsWorker = new Worker(workerPath, { type: 'module' });
+const workerPath = isProduction ? '/nebula-ausp/physics.worker.js' : new URL('./physics/physics.worker.js', import.meta.url);
+console.log(`[main] Initializing... Production: ${isProduction}, Worker Path:`, workerPath);
+
+let physicsWorker;
+try {
+    physicsWorker = new Worker(workerPath, { type: 'module' });
+    console.log('[main] Worker object created.');
+
+    physicsWorker.onerror = (error) => {
+        console.error('[main] Worker error:', error);
+        alert(`A critical error occurred with the physics worker. Please check the console for details. Error: ${error.message}`);
+    };
+} catch (error) {
+    console.error('[main] Failed to create Worker:', error);
+    alert('Failed to initialize the physics engine. The application cannot start. Please check the console.');
+}
 
 const benchmarkController = new BenchmarkController();
 const log = new Log();
@@ -84,8 +98,9 @@ async function main() {
     particleInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(particleInstances);
 
-
+    console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
+        console.log('[main] Received message from worker:', e.data.type);
         switch (e.data.type) {
             case 'physics_update':
                 if (e.data.buffer) {
