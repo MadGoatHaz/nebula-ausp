@@ -225,6 +225,29 @@ ui.submissionModal.submitBtn.addEventListener('click', () => {
     ui.submissionModal.backdrop.classList.add('hidden');
 });
 
+async function fetchAndShowTopScores() {
+    try {
+        const response = await fetch('./leaderboard-data.json');
+        if (!response.ok) throw new Error('Failed to fetch leaderboard');
+        const scores = await response.json();
+        
+        ui.topScoresPanel.innerHTML = ''; // Clear loading message
+        scores.slice(0, 3).forEach(entry => {
+            const scoreEl = document.createElement('div');
+            scoreEl.className = 'top-score-entry';
+            scoreEl.innerHTML = `
+                <span class="rank">${entry.rank}.</span>
+                <span class="user">${entry.user}</span>
+                <span class="score">${entry.score.toLocaleString()}</span>
+            `;
+            ui.topScoresPanel.appendChild(scoreEl);
+        });
+    } catch (err) {
+        console.error("Could not load top scores:", err);
+        ui.topScoresPanel.innerHTML = '<div class="top-score-loading">Could not load scores.</div>';
+    }
+}
+
 // --- ANIMATION LOOP ---
 const clock = new THREE.Clock();
 const dummy = new THREE.Object3D();
@@ -340,6 +363,7 @@ function animate() {
 async function main() {
     logMessage("Application starting...", "info");
     ui.versionInfo.textContent = `v${APP_VERSION}`;
+    fetchAndShowTopScores();
     
     logMessage("Detecting system capabilities...", "warn");
     systemCapabilities = await detectCapabilities(renderer);
@@ -361,3 +385,7 @@ async function main() {
 }
 
 main();
+
+ui.leaderboardBtn.addEventListener('click', () => {
+    window.location.href = './leaderboard.html';
+});

@@ -15,6 +15,13 @@ export function createUI() {
         <button id="download-log-btn" disabled>Download Log</button>
         <button id="submit-score-btn" disabled>Submit Score</button>
 
+        <div class="config-group-header">Top 3 Scores</div>
+        <div id="top-scores-panel">
+            <!-- Top scores will be injected here -->
+            <div class="top-score-loading">Loading...</div>
+        </div>
+        <button id="leaderboard-btn">View Full Leaderboard</button>
+
         <div class="config-group-header">Sandbox Controls</div>
         <div class="config-item">
             <label title="Load a pre-defined set of simulation parameters.">Scenario:</label>
@@ -64,6 +71,8 @@ export function createUI() {
         benchmarkBtn: document.getElementById('benchmark-btn'),
         downloadLogBtn: document.getElementById('download-log-btn'),
         submitScoreBtn: document.getElementById('submit-score-btn'),
+        leaderboardBtn: document.getElementById('leaderboard-btn'),
+        topScoresPanel: document.getElementById('top-scores-panel'),
         metrics: {
             fps: document.getElementById('metric-fps'),
             physicsCpu: document.getElementById('metric-physics-cpu'),

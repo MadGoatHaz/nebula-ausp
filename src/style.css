@@ -205,3 +205,30 @@ canvas {
     transform: translateY(-2px);
     box-shadow: 0 4px 15px rgba(0, 255, 204, 0.3);
 }
+
+#top-scores-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.top-score-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #2a2a2a;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+.top-score-entry .rank {
+    font-weight: 700;
+    color: var(--primary-color);
+    flex-basis: 20px;
+}
+.top-score-entry .user {
+    flex-grow: 1;
+}
+.top-score-entry .score {
+    font-weight: 700;
+}

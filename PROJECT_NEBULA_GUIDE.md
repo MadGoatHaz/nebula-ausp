@@ -92,17 +92,22 @@ To prevent repeating history, we document our critical failures and the lessons 
     *   **Root Cause:** The `main.js` script was appending the renderer's canvas to a `div` (`#app`) instead of the `document.body`. The UI's CSS would then cause the canvas to have a size of `0x0`, crashing the WebGL context.
     *   **Lesson:** The main 3D canvas should almost always be a direct child of `document.body` to ensure it correctly fills the viewport. The UI should be in a separate container that floats on top.
 
+*   **Case File #E: The `SharedArrayBuffer` GitHub Pages Failure**
+    *   **Symptom:** Application worked perfectly on the local dev server but showed a black screen and failed to initialize when deployed to GitHub Pages.
+    *   **Root Cause:** `SharedArrayBuffer` requires specific `COOP`/`COEP` security headers to function. GitHub Pages does not serve these headers and does not allow them to be configured. This caused the physics worker initialization to fail.
+    *   **Lesson:** GitHub Pages is a simple static host. For features requiring specific server headers, a different hosting provider (like Vercel, Netlify, or a custom server) is necessary. The application was refactored to not use `SharedArrayBuffer` to ensure compatibility.
+
 ## 6. Future Roadmap
 
 ### Phase 2: Leaderboard & Data Integration (Next)
-*   **Status:** 🔲 (Planned)
+*   **Status:** ✅ (Frontend Complete)
 *   **Objective:** Create the backend and frontend for a live, public leaderboard.
 *   **Key Tasks:**
-    - [ ] Implement a robust `SystemInfo` collector.
+    - [x] Implement a robust `SystemInfo` collector.
+    - [x] Build a "Submit Score" UI flow.
+    - [x] Build a public leaderboard page (using mock data).
+    - [x] Display Top 3 scores on the main application page.
     - [ ] Build a backend API and database for submissions.
-    - [ ] Create a "Submit Score" UI flow.
-    - [ ] Build a public leaderboard page.
-    - [ ] Deploy the application to GitHub Pages.
 
 ### Phase 3: Capability-Aware Bonus Tests
 *   **Status:** 🔲 (Planned)
