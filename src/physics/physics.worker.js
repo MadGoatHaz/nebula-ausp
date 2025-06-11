@@ -110,6 +110,7 @@ function startPhysicsLoop() {
             const physicsStepTime = performance.now() - physicsStartTime;
             self.postMessage({ 
                 type: 'physics_update', 
+                particleCount: currentParticleCount,
                 physicsStepTime, 
                 consumedParticles,
                 data: dataView.buffer

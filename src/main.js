@@ -33,6 +33,7 @@ const log = new Log();
 let dataView = null;
 let particleInstances = null;
 let animationFrameId = null;
+let activeParticleCount = 0;
 let instanceColorAttribute, instanceVelocityAttribute;
 
 // --- Animation-Scoped Temp Variables ---
@@ -101,6 +102,7 @@ async function main() {
             case 'physics_update':
                 if (e.data.buffer) {
                     dataView = new Float32Array(e.data.buffer);
+                    activeParticleCount = e.data.particleCount;
                 }
                 break;
             case 'worker_error':
@@ -185,8 +187,6 @@ function animate() {
     const dt = clock.getDelta();
     const elapsedTime = clock.getElapsedTime();
 
-    const particleCount = dataView.length / PARTICLE_STRIDE;
-    
     diskMaterial.uniforms.uTime.value = elapsedTime;
     nebulaMaterials.forEach(m => m.uniforms.uTime.value = elapsedTime);
     if (filmPass) filmPass.uniforms.time.value = elapsedTime;
@@ -199,7 +199,7 @@ function animate() {
     physicsWorker.postMessage({ type: 'update_moon', x: moon.position.x, y: moon.position.y, z: moon.position.z });
 
 
-    updateParticles(particleCount, elapsedTime);
+    updateParticles(activeParticleCount, elapsedTime);
 
     controls.update();
     composer.render(dt);

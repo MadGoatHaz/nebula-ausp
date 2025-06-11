@@ -13,6 +13,7 @@ const JET_PARTICLE_COUNT = 8000;
 export function createScene(gui) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 40000);
+    camera.position.set(0, 1000, 2500);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -49,7 +50,7 @@ export function createScene(gui) {
     vignetteFolder.add(vignettePass.uniforms.offset, 'value', 0, 2).name('Offset');
     vignetteFolder.add(vignettePass.uniforms.darkness, 'value', 0, 2).name('Darkness');
 
-    const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true }));
+    const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
     scene.add(blackHoleMesh);
 
     const starGeometry = new THREE.BufferGeometry();
