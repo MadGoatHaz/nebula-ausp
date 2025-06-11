@@ -1,9 +1,8 @@
-let sharedBuffer, dataView;
+let dataView, accelerations, masses;
 let maxParticles = 0, currentParticleCount = 0;
 const STRIDE = 6;
 let G = 6.674;
 let blackHoleMass = 400000;
-let accelerations, masses;
 let physicsQuality = 'simple';
 let consumedParticles = 0;
 const MOON_MASS = 50000;
@@ -105,15 +104,24 @@ function startPhysicsLoop() {
             applyForces(dt);
         }
         const physicsStepTime = performance.now() - physicsStartTime;
-        self.postMessage({ type: 'physics_report', physicsStepTime, consumedParticles });
+        self.postMessage({ 
+            type: 'physics_update', 
+            physicsStepTime, 
+            consumedParticles,
+            data: dataView.buffer
+        });
     }, 1000 / 60);
 }
 
 self.onmessage = (e) => {
     const { type, ...data } = e.data;
     if (type === 'init') {
-        sharedBuffer = data.sharedBuffer; maxParticles = data.maxParticles; blackHoleMass = data.blackHoleMass;
-        dataView = new Float32Array(sharedBuffer); accelerations = new Float32Array(maxParticles * 3); masses = new Float32Array(maxParticles);
+        maxParticles = data.maxParticles; 
+        blackHoleMass = data.blackHoleMass;
+        const buffer = new ArrayBuffer(maxParticles * STRIDE * Float32Array.BYTES_PER_ELEMENT);
+        dataView = new Float32Array(buffer); 
+        accelerations = new Float32Array(maxParticles * 3); 
+        masses = new Float32Array(maxParticles);
         masses[0] = blackHoleMass;
         masses[1] = MOON_MASS;
         currentParticleCount = 2;
@@ -152,6 +160,7 @@ self.onmessage = (e) => {
     } else if (type === 'reset') {
         currentParticleCount = 2; consumedParticles = 0;
     } else if (type === 'update_moon') {
+        if (!dataView) return;
         dataView[STRIDE] = data.x;
         dataView[STRIDE+1] = data.y;
         dataView[STRIDE+2] = data.z;

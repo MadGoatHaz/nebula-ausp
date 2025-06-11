@@ -21,7 +21,6 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui-cont
 // --- STATE ---
 let particleInstances = null;
 let dataView = null;
-let sharedBuffer = null;
 let physicsTime = 0;
 let consumedParticles = 0;
 let systemCapabilities = {};
@@ -49,12 +48,10 @@ function initializeSimulation(initialParticleCount = 0) {
         particleInstances = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5, 0), particleMaterial, MAX_PARTICLES);
         particleInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         scene.add(particleInstances);
-
-        sharedBuffer = new SharedArrayBuffer(MAX_PARTICLES * PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT);
-        dataView = new Float32Array(sharedBuffer);
         
         physicsWorker.onmessage = (e) => {
-            if (e.data.type === 'physics_report') {
+            if (e.data.type === 'physics_update') {
+                dataView = new Float32Array(e.data.data);
                 physicsTime = e.data.physicsStepTime;
                 consumedParticles = e.data.consumedParticles;
             } else if (e.data.type === 'ready') {
@@ -63,7 +60,7 @@ function initializeSimulation(initialParticleCount = 0) {
             }
         };
 
-        physicsWorker.postMessage({ type: 'init', sharedBuffer: sharedBuffer, maxParticles: MAX_PARTICLES, blackHoleMass: parseFloat(ui.sandboxControls.bhMass.value) });
+        physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES, blackHoleMass: parseFloat(ui.sandboxControls.bhMass.value) });
         physicsWorker.postMessage({ type: 'set_particles', count: initialParticleCount });
     });
 }
