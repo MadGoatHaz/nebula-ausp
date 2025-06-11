@@ -24,7 +24,7 @@ export function createScene() {
     composer.addPass(new RenderPass(scene, camera));
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.4, 0.1));
 
-    const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 64, 64), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
     scene.add(blackHoleMesh);
 
     const starGeometry = new THREE.BufferGeometry();
@@ -174,7 +174,7 @@ export function createScene() {
             blending: THREE.AdditiveBlending
         });
         nebulaMaterials.push(material);
-        const nebula = new THREE.Mesh(new THREE.SphereGeometry(20000 - i * 5000, 64, 64), material);
+        const nebula = new THREE.Mesh(new THREE.SphereGeometry(20000 - i * 5000, 32, 32), material);
         scene.add(nebula);
     }
 

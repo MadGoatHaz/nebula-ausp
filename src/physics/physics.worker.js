@@ -120,27 +120,31 @@ self.onmessage = (e) => {
         startPhysicsLoop();
         self.postMessage({ type: 'ready' });
     } else if (type === 'set_particles') {
-        const newCount = Math.min(maxParticles, data.count);
-        for (let i = currentParticleCount; i < newCount; i++) {
-            const i6 = i * STRIDE;
-            const radius = 2000 + Math.random() * 8000;
-            const theta = 2 * Math.PI * Math.random(); 
-            const phi = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
-            const x = radius * Math.cos(theta) * Math.cos(phi);
-            const y = radius * Math.sin(phi) * 0.5;
-            const z = radius * Math.sin(theta) * Math.cos(phi);
-            dataView[i6] = x; dataView[i6 + 1] = y; dataView[i6 + 2] = z;
-            
-            const velMag = Math.sqrt(G * blackHoleMass / radius) * (0.8 + Math.random() * 0.2);
-            const tangent = new Float32Array([-z, 0, x]);
-            const mag = Math.sqrt(tangent[0]*tangent[0] + tangent[2]*tangent[2]);
-            if (mag > 1e-9) { tangent[0] /= mag; tangent[2] /= mag; }
-            dataView[i6 + 3] = tangent[0] * velMag;
-            dataView[i6 + 4] = (Math.random() - 0.5) * 20;
-            dataView[i6 + 5] = tangent[2] * velMag;
-            masses[i] = 1 + Math.random() * 5;
+        const newParticleCount = Math.min(maxParticles - 2, data.count);
+        const oldTotalCount = currentParticleCount;
+        currentParticleCount = newParticleCount + 2;
+
+        if (currentParticleCount > oldTotalCount) {
+            for (let i = oldTotalCount; i < currentParticleCount; i++) {
+                const i6 = i * STRIDE;
+                const radius = 2000 + Math.random() * 8000;
+                const theta = 2 * Math.PI * Math.random(); 
+                const phi = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
+                const x = radius * Math.cos(theta) * Math.cos(phi);
+                const y = radius * Math.sin(phi) * 0.5;
+                const z = radius * Math.sin(theta) * Math.cos(phi);
+                dataView[i6] = x; dataView[i6 + 1] = y; dataView[i6 + 2] = z;
+                
+                const velMag = Math.sqrt(G * blackHoleMass / radius) * (0.8 + Math.random() * 0.2);
+                const tangent = new Float32Array([-z, 0, x]);
+                const mag = Math.sqrt(tangent[0]*tangent[0] + tangent[2]*tangent[2]);
+                if (mag > 1e-9) { tangent[0] /= mag; tangent[2] /= mag; }
+                dataView[i6 + 3] = tangent[0] * velMag;
+                dataView[i6 + 4] = (Math.random() - 0.5) * 20;
+                dataView[i6 + 5] = tangent[2] * velMag;
+                masses[i] = 1 + Math.random() * 5;
+            }
         }
-        currentParticleCount = newCount;
     } else if (type === 'set_mass') {
         blackHoleMass = data.mass; if(masses) masses[0] = blackHoleMass;
     } else if (type === 'set_quality') {

@@ -6,6 +6,13 @@ import { Log } from './core/log.js';
 import { detectCapabilities } from './core/profiler.js';
 import * as THREE from 'three';
 
+// --- CONSTANTS ---
+const MAX_PARTICLES = 150000;
+const PARTICLE_STRIDE = 6;
+const PARTICLE_DEAD_FLAG = 99998;
+const MOON_ORBIT_RADIUS = 1500;
+const BENCHMARK_UI_UPDATE_INTERVAL = 500; // ms
+
 // --- INITIALIZATION ---
 const ui = createUI();
 const { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials } = createScene();
@@ -39,11 +46,11 @@ function initializeSimulation(initialParticleCount = 0) {
         logMessage(`Initializing simulation with ${initialParticleCount} particles...`, "warn");
         if (particleInstances) scene.remove(particleInstances);
         const particleMaterial = new THREE.MeshStandardMaterial({ emissive: 0xffffff, vertexColors: true });
-        particleInstances = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5, 0), particleMaterial, 150000);
+        particleInstances = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(5, 0), particleMaterial, MAX_PARTICLES);
         particleInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         scene.add(particleInstances);
 
-        sharedBuffer = new SharedArrayBuffer(150000 * 6 * Float32Array.BYTES_PER_ELEMENT);
+        sharedBuffer = new SharedArrayBuffer(MAX_PARTICLES * PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT);
         dataView = new Float32Array(sharedBuffer);
         
         physicsWorker.onmessage = (e) => {
@@ -56,7 +63,7 @@ function initializeSimulation(initialParticleCount = 0) {
             }
         };
 
-        physicsWorker.postMessage({ type: 'init', sharedBuffer: sharedBuffer, maxParticles: 150000, blackHoleMass: parseFloat(ui.sandboxControls.bhMass.value) });
+        physicsWorker.postMessage({ type: 'init', sharedBuffer: sharedBuffer, maxParticles: MAX_PARTICLES, blackHoleMass: parseFloat(ui.sandboxControls.bhMass.value) });
         physicsWorker.postMessage({ type: 'set_particles', count: initialParticleCount });
     });
 }
@@ -135,58 +142,80 @@ setInterval(() => {
         Object.values(ui.sandboxControls).forEach(el => el.disabled = false);
         if (benchmarkController.state === State.COMPLETE) {
             ui.downloadLogBtn.disabled = false;
+            ui.submitScoreBtn.disabled = false;
         }
     }
-}, 500);
+}, BENCHMARK_UI_UPDATE_INTERVAL);
+
+ui.submitScoreBtn.addEventListener('click', () => {
+    const results = benchmarkController.results;
+    const scoreSummary = `
+        <strong>Final Score:</strong> ${results.finalScore}<br>
+        <strong>Avg. FPS (Combined):</strong> ${results.combined.avgFps.toFixed(1)}<br>
+        <strong>Avg. GPU Time:</strong> ${results.gpu.avgGpuTime.toFixed(2)}ms<br>
+        <strong>Avg. CPU Time:</strong> ${results.cpu.avgCpuTime.toFixed(2)}ms
+    `;
+    const systemSummary = `
+        <strong>OS:</strong> ${systemCapabilities.os}<br>
+        <strong>CPU:</strong> ${systemCapabilities.cpuCores} Cores<br>
+        <strong>Memory:</strong> ${systemCapabilities.memory} GB<br>
+        <strong>GPU:</strong> ${systemCapabilities.gpuRenderer}<br>
+        <strong>Browser:</strong> ${systemCapabilities.browser}
+    `;
+    ui.submissionModal.scoreSummary.innerHTML = scoreSummary;
+    ui.submissionModal.systemSummary.innerHTML = systemSummary;
+    ui.submissionModal.backdrop.classList.remove('hidden');
+});
+
+ui.submissionModal.cancelBtn.addEventListener('click', () => {
+    ui.submissionModal.backdrop.classList.add('hidden');
+});
+
+ui.submissionModal.submitBtn.addEventListener('click', () => {
+    const submissionData = {
+        score: benchmarkController.results.finalScore,
+        results: benchmarkController.results,
+        system: systemCapabilities,
+        log: log.content
+    };
+    console.log("--- SUBMITTING TO LEADERBOARD ---");
+    console.log(JSON.stringify(submissionData, null, 2));
+    logMessage("Score submitted to console.", 'success');
+    ui.submissionModal.backdrop.classList.add('hidden');
+});
 
 // --- ANIMATION LOOP ---
 const clock = new THREE.Clock();
 const dummy = new THREE.Object3D();
 const color = new THREE.Color();
 
-function animate() {
-    requestAnimationFrame(animate);
-    const dt = clock.getDelta();
-    const elapsedTime = clock.getElapsedTime();
+function updateParticles(particleCount) {
+    if (!particleInstances || !dataView) return;
 
-    let particleCount = 0;
-    if (benchmarkController.state === State.IDLE) {
-        particleCount = parseInt(ui.sandboxControls.particles.value);
-    } else {
-        particleCount = benchmarkController.currentParticleCount;
-    }
-    
-    diskMaterial.uniforms.uTime.value = elapsedTime;
-    nebulaMaterials.forEach(m => m.uniforms.uTime.value = elapsedTime);
-
-    const moonOrbitRadius = 1500;
-    moon.position.set(Math.cos(elapsedTime * 0.3) * moonOrbitRadius, 0, Math.sin(elapsedTime * 0.3) * moonOrbitRadius);
-    physicsWorker.postMessage({ type: 'update_moon', x: moon.position.x, y: moon.position.y, z: moon.position.z });
-
-    if (particleInstances && dataView) {
-        particleInstances.count = particleCount;
-        for (let i = 0; i < particleCount; i++) {
-            const i6 = i * 6;
-            if(dataView[i6] > 99998) {
-                dummy.scale.set(0,0,0);
-            } else {
-                dummy.scale.set(1,1,1);
-                dummy.position.set(dataView[i6], dataView[i6 + 1], dataView[i6 + 2]);
-                const vx = dataView[i6 + 3], vy = dataView[i6 + 4], vz = dataView[i6 + 5];
-                const speedSq = vx*vx + vy*vy + vz*vz;
-                const colorT = Math.min(1, Math.sqrt(speedSq) / 250);
-                color.setHSL(0.1 + colorT * 0.1, 1.0, 0.5 + colorT * 0.4);
-                particleInstances.setColorAt(i, color);
-            }
-            dummy.updateMatrix();
-            particleInstances.setMatrixAt(i, dummy.matrix);
+    particleInstances.count = particleCount;
+    for (let i = 0; i < particleCount; i++) {
+        const i6 = i * PARTICLE_STRIDE;
+        if (dataView[i6] > PARTICLE_DEAD_FLAG) {
+            dummy.scale.set(0, 0, 0);
+        } else {
+            dummy.scale.set(1, 1, 1);
+            dummy.position.set(dataView[i6], dataView[i6 + 1], dataView[i6 + 2]);
+            const vx = dataView[i6 + 3], vy = dataView[i6 + 4], vz = dataView[i6 + 5];
+            const speedSq = vx * vx + vy * vy + vz * vz;
+            const colorT = Math.min(1, Math.sqrt(speedSq) / 250);
+            color.setHSL(0.1 + colorT * 0.1, 1.0, 0.5 + colorT * 0.4);
+            particleInstances.setColorAt(i, color);
         }
-        particleInstances.instanceMatrix.needsUpdate = true;
-        if (particleInstances.instanceColor) {
-            particleInstances.instanceColor.needsUpdate = true;
-        }
+        dummy.updateMatrix();
+        particleInstances.setMatrixAt(i, dummy.matrix);
     }
+    particleInstances.instanceMatrix.needsUpdate = true;
+    if (particleInstances.instanceColor) {
+        particleInstances.instanceColor.needsUpdate = true;
+    }
+}
 
+function updateJets(dt) {
     const jetPositions = jets.geometry.attributes.position.array;
     for (let i = 0; i < jetParticles.length; i++) {
         const p = jetParticles[i];
@@ -204,7 +233,9 @@ function animate() {
         jetPositions[i * 3 + 2] += p.velocity.z * dt;
     }
     jets.geometry.attributes.position.needsUpdate = true;
+}
 
+function updateCamera(elapsedTime) {
     if (benchmarkController.state === State.IDLE) {
         controls.update();
     } else {
@@ -213,16 +244,10 @@ function animate() {
         camera.position.y = 600 + Math.sin(elapsedTime * 0.07) * 200;
         camera.lookAt(scene.position);
     }
-    
-    const renderStartTime = performance.now();
-    if (composer.enabled) {
-        composer.render();
-    } else {
-        renderer.render(scene, camera);
-    }
-    const renderTime = performance.now() - renderStartTime;
+}
 
-    benchmarkController.recordMetrics(1/dt, renderTime, physicsTime);
+function updateUI(dt, renderTime) {
+    benchmarkController.recordMetrics(1 / dt, renderTime, physicsTime);
     benchmarkController.update(performance.now());
     ui.benchmarkStatusEl.innerHTML = benchmarkController.getStatus();
 
@@ -232,6 +257,39 @@ function animate() {
     ui.metrics.consumed.textContent = consumedParticles;
 }
 
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    const elapsedTime = clock.getElapsedTime();
+
+    const particleCount = (benchmarkController.state === State.IDLE)
+        ? parseInt(ui.sandboxControls.particles.value)
+        : benchmarkController.currentParticleCount;
+    
+    diskMaterial.uniforms.uTime.value = elapsedTime;
+    nebulaMaterials.forEach(m => m.uniforms.uTime.value = elapsedTime);
+
+    moon.position.set(
+        Math.cos(elapsedTime * 0.3) * MOON_ORBIT_RADIUS, 0, 
+        Math.sin(elapsedTime * 0.3) * MOON_ORBIT_RADIUS
+    );
+    physicsWorker.postMessage({ type: 'update_moon', x: moon.position.x, y: moon.position.y, z: moon.position.z });
+
+    updateParticles(particleCount);
+    updateJets(dt);
+    updateCamera(elapsedTime);
+    
+    const renderStartTime = performance.now();
+    if (composer.enabled) {
+        composer.render();
+    } else {
+        renderer.render(scene, camera);
+    }
+    const renderTime = performance.now() - renderStartTime;
+
+    updateUI(dt, renderTime);
+}
+
 // --- INITIAL SETUP ---
 async function main() {
     logMessage("Application starting...", "info");
@@ -239,7 +297,10 @@ async function main() {
     logMessage("Detecting system capabilities...", "warn");
     systemCapabilities = await detectCapabilities(renderer);
     logMessage("--- System Report ---", "info");
+    logMessage(`OS: ${systemCapabilities.os}`, "info");
+    logMessage(`Browser: ${systemCapabilities.browser}`, "info");
     logMessage(`CPU Cores: ${systemCapabilities.cpuCores}`, "info");
+    logMessage(`Memory: ${systemCapabilities.memory} GB`, "info");
     logMessage(`GPU Vendor: ${systemCapabilities.gpuVendor}`, "info");
     logMessage(`GPU Renderer: ${systemCapabilities.gpuRenderer}`, "info");
     logMessage(`WebGPU Support: ${systemCapabilities.hasWebGpu}`, systemCapabilities.hasWebGpu ? 'success' : 'info');

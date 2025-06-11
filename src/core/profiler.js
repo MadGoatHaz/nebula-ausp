@@ -3,14 +3,39 @@ export async function detectCapabilities(renderer) {
         cpuCores: 0,
         gpuVendor: 'Unknown',
         gpuRenderer: 'Unknown',
+        memory: 0,
+        os: 'Unknown',
+        browser: 'Unknown',
         hasWebGpu: false,
         hasRayTracing: false,
     };
 
+    // --- Hardware ---
     if (navigator.hardwareConcurrency) {
         capabilities.cpuCores = navigator.hardwareConcurrency;
     }
+    if (navigator.deviceMemory) {
+        capabilities.memory = navigator.deviceMemory;
+    }
 
+    // --- Browser & OS ---
+    if (navigator.userAgentData) {
+        const ua = await navigator.userAgentData.getHighEntropyValues(['platform', 'platformVersion', 'architecture', 'model', 'uaFullVersion']);
+        capabilities.os = `${ua.platform} ${ua.platformVersion}`;
+        const brand = ua.brands.find(b => b.brand !== "Not A;Brand");
+        if (brand) {
+            capabilities.browser = `${brand.brand} ${ua.uaFullVersion}`;
+        }
+    } else {
+        // Fallback to userAgent string parsing
+        const ua = navigator.userAgent;
+        const osMatch = ua.match(/(Windows NT \d+\.\d+|Mac OS X \d+_\d+_\d+|Android \d+\.\d+|iOS \d+_\d+_\d+|Linux [x_]\d+_\d+)/);
+        if (osMatch) capabilities.os = osMatch[0].replace(/_/g, '.');
+        const browserMatch = ua.match(/(Chrome|Firefox|Safari|Edge)\/([\d\.]+)/);
+        if (browserMatch) capabilities.browser = `${browserMatch[1]} ${browserMatch[2]}`;
+    }
+
+    // --- GPU ---
     if (navigator.gpu) {
         capabilities.hasWebGpu = true;
         try {

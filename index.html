@@ -17,6 +17,20 @@
             <!-- Log messages will be injected here by main.js -->
         </div>
     </div>
+
+    <div id="submission-modal-backdrop" class="hidden">
+        <div id="submission-modal">
+            <h2>Benchmark Complete!</h2>
+            <p>Here is your final score and a summary of your system's performance.</p>
+            <div id="modal-score-summary"></div>
+            <div id="modal-system-summary"></div>
+            <div id="submission-buttons">
+                <button id="modal-cancel-btn">Cancel</button>
+                <button id="modal-submit-btn">Submit to Leaderboard</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

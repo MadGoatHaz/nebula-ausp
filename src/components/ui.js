@@ -13,6 +13,7 @@ export function createUI() {
         <div id="benchmark-status">Ready for standard test.</div>
         <button id="benchmark-btn">Run Comprehensive Benchmark</button>
         <button id="download-log-btn" disabled>Download Log</button>
+        <button id="submit-score-btn" disabled>Submit Score</button>
 
         <div class="config-group-header">Sandbox Controls</div>
         <div class="config-item">
@@ -59,6 +60,7 @@ export function createUI() {
         benchmarkStatusEl: document.getElementById('benchmark-status'),
         benchmarkBtn: document.getElementById('benchmark-btn'),
         downloadLogBtn: document.getElementById('download-log-btn'),
+        submitScoreBtn: document.getElementById('submit-score-btn'),
         metrics: {
             fps: document.getElementById('metric-fps'),
             physicsCpu: document.getElementById('metric-physics-cpu'),
@@ -72,6 +74,13 @@ export function createUI() {
             physicsQuality: document.getElementById('physics-quality'),
             scenario: document.getElementById('scenario-preset'),
             resetCameraBtn: document.getElementById('reset-camera-btn'),
+        },
+        submissionModal: {
+            backdrop: document.getElementById('submission-modal-backdrop'),
+            scoreSummary: document.getElementById('modal-score-summary'),
+            systemSummary: document.getElementById('modal-system-summary'),
+            cancelBtn: document.getElementById('modal-cancel-btn'),
+            submitBtn: document.getElementById('modal-submit-btn'),
         }
     };
 }

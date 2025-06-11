@@ -86,3 +86,71 @@ canvas {
 .config-group-header { font-size: 14px; color: var(--primary-color); margin-top: 15px; border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px; }
 #metrics-panel { font-size: 12px; line-height: 1.6; }
 .info-box { font-size: 11px; line-height: 1.5; background: #222; padding: 8px; border-radius: 4px; margin-top: 10px; }
+
+/* --- Submission Modal --- */
+#submission-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+#submission-modal-backdrop.hidden {
+    display: none;
+}
+#submission-modal {
+    background: var(--background-color);
+    padding: 25px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 90%;
+    max-width: 500px;
+    color: var(--text-color);
+    text-align: center;
+}
+#submission-modal h2 {
+    color: var(--primary-color);
+    margin-top: 0;
+}
+#modal-score-summary, #modal-system-summary {
+    background: var(--dark-grey);
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.8;
+}
+#modal-system-summary strong, #modal-score-summary strong {
+    color: var(--primary-color);
+    display: inline-block;
+    width: 120px;
+}
+#submission-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+#submission-buttons button {
+    width: 48%;
+    font-family: inherit; background: var(--primary-color); color: #000; border: none;
+    padding: 12px; cursor: pointer; font-size: 14px; font-weight: 700;
+    border-radius: 8px; transition: all 0.3s;
+}
+#submission-buttons button#modal-cancel-btn {
+    background: var(--dark-grey);
+    color: var(--text-color);
+}
+#submission-buttons button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 255, 204, 0.3);
+}
+#submission-buttons button#modal-cancel-btn:hover {
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
+}
