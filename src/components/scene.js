@@ -49,7 +49,7 @@ export function createScene(gui) {
     vignetteFolder.add(vignettePass.uniforms.offset, 'value', 0, 2).name('Offset');
     vignetteFolder.add(vignettePass.uniforms.darkness, 'value', 0, 2).name('Darkness');
 
-    const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    const blackHoleMesh = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true }));
     scene.add(blackHoleMesh);
 
     const starGeometry = new THREE.BufferGeometry();

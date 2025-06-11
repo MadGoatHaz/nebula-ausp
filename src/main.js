@@ -9,7 +9,7 @@ import { GUI } from 'lil-gui';
 import packageJson from '../package.json';
 
 // --- CONSTANTS ---
-const PARTICLE_STRIDE = 8; // (x, y, z, vx, vy, vz, size, age)
+const PARTICLE_STRIDE = 6; // (x, y, z, vx, vy, vz)
 const MAX_PARTICLES = 500000;
 const MOON_ORBIT_RADIUS = 3000;
 
