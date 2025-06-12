@@ -15,23 +15,29 @@ const MOON_ORBIT_RADIUS = 3000;
 
 // --- INITIALIZATION ---
 const ui = createUI();
-const gui = new GUI();
+const mainGui = new GUI();
 const {
     scene, camera, renderer, composer, controls,
     accretionDisk, diskMaterial, moon, nebulaMaterials,
-    filmPass, jets, jetParticles
-} = createScene(gui);
+    filmPass, jets, jetParticles, gui
+} = createScene(mainGui);
 document.body.insertBefore(renderer.domElement, document.getElementById('ui-container'));
 
 const clock = new THREE.Clock();
 const stats = {
     fps: { value: 0, smoothing: 0.9, lastTime: 0 },
     renderTime: { value: 0, smoothing: 0.9 },
-    physicsCpu: { value: 0, smoothing: 0.9 },
+    physicsCpu: { value: 0, smoothing: 0.9, lastTime: performance.now() },
     particles: { value: 0 },
     consumed: { value: 0 }
 };
 let systemCapabilities = {};
+
+// Performance Graph Data
+const perfHistory = {
+    cpu: new Array(100).fill(0),
+    gpu: new Array(100).fill(0)
+};
 
 const physicsWorker = new Worker(new URL('./physics/physics.worker.js', import.meta.url), { type: 'module' });
 
@@ -61,6 +67,10 @@ async function main() {
     ui.versionInfo.textContent = `v${packageJson.version}`;
     systemCapabilities = await detectCapabilities(renderer);
     console.log("System Capabilities:", systemCapabilities);
+    
+    // Populate System Info panel
+    if (ui.systemInfo.cpu) ui.systemInfo.cpu.textContent = systemCapabilities.cpuCores;
+    if (ui.systemInfo.gpu) ui.systemInfo.gpu.textContent = systemCapabilities.gpuRenderer;
     
     // Create particle instances mesh
     const particleMaterial = new THREE.ShaderMaterial({
@@ -148,8 +158,14 @@ async function main() {
             case 'physics_update':
                 // Physics step is complete. Update state and kick off the next physics step immediately.
                 // The rendering is happening independently in the renderLoop.
+                stats.physicsCpu.value = performance.now() - stats.physicsCpu.lastTime;
                 activeParticleCount = e.data.particleCount;
                 stats.consumed.value = e.data.consumedParticles;
+
+                // On the first run, the worker won't have a particle count yet.
+                if (activeParticleCount === 0) {
+                    activeParticleCount = simState.particleCount;
+                }
                 
                 const message = {
                     type: 'physics_update',
@@ -167,12 +183,17 @@ async function main() {
                     stateChanged = false; // Reset the flag
                 }
                 
+                stats.physicsCpu.lastTime = performance.now();
                 physicsWorker.postMessage(message, [dataView.buffer]);
                 break;
         }
     };
 
     // --- EVENT LISTENERS ---
+    ui.toggleControlsBtn.addEventListener('click', () => {
+        mainGui.show(mainGui._hidden);
+    });
+
     ui.submitScoreBtn.addEventListener('click', () => {
         ui.submissionModal.backdrop.classList.remove('hidden');
         ui.submissionModal.scoreSummary.textContent = `Final Score: ${benchmarkController.finalScore}`;
@@ -302,7 +323,17 @@ function animate() {
     stats.fps.lastTime = now;
     if (ui.metrics.fps) ui.metrics.fps.textContent = stats.fps.value.toFixed(1);
     if (ui.metrics.particles) ui.metrics.particles.textContent = activeParticleCount.toLocaleString();
-    if (ui.metrics.consumed) ui.metrics.consumed.textContent = stats.consumed.value.toLocaleString();
+    if (ui.metrics.physicsCpu) ui.metrics.physicsCpu.textContent = stats.physicsCpu.value.toFixed(2);
+    
+    // Measure render time
+    const renderStartTime = performance.now();
+    composer.render(dt);
+    stats.renderTime.value = performance.now() - renderStartTime;
+    if (ui.metrics.renderTime) ui.metrics.renderTime.textContent = stats.renderTime.value.toFixed(2);
+    
+    // Update and draw graphs
+    updatePerfGraph(perfHistory.cpu, stats.physicsCpu.value, ui.metrics.cpuGraph, '#ff5555');
+    updatePerfGraph(perfHistory.gpu, stats.renderTime.value, ui.metrics.gpuGraph, '#00ffcc');
 
     benchmarkController.update(performance.now());
     
@@ -320,7 +351,30 @@ function animate() {
     updateJets(dt);
 
     controls.update();
-    composer.render(dt);
+}
+
+function updatePerfGraph(history, value, canvas, color) {
+    // Add new value and remove oldest
+    history.push(value);
+    if (history.length > 100) history.shift();
+
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    const maxVal = Math.max(...history) * 1.1; // Add 10% padding
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    
+    history.forEach((val, i) => {
+        const x = (i / (history.length -1)) * w;
+        const y = h - (val / maxVal) * h;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
 }
 
 function updateParticles(particleCount, elapsedTime) {

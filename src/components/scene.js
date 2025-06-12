@@ -37,6 +37,7 @@ export function createScene(gui) {
     composer.addPass(vignettePass);
 
     // GUI
+    gui.hide(); // Hide the GUI by default
     const postprocessingFolder = gui.addFolder('Post-Processing');
     postprocessingFolder.add(bloomPass, 'strength', 0.0, 3.0).name('Bloom');
     
@@ -212,5 +213,5 @@ export function createScene(gui) {
     }
     window.addEventListener('resize', onResize);
 
-    return { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials, filmPass, vignettePass };
+    return { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials, filmPass, vignettePass, gui };
 }

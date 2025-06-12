@@ -52,6 +52,19 @@ canvas {
 #log-panel-container::-webkit-scrollbar, #info-panel::-webkit-scrollbar { display: none; }
 #log-panel-container, #info-panel { -ms-overflow-style: none; scrollbar-width: none; }
 
+#right-panel {
+    order: 3; /* Ensure it's on the far right */
+}
+
+.perf-graph {
+    width: 100%;
+    height: 50px;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 4px;
+    margin-top: 5px;
+    border: 1px solid #444;
+}
+
 .log-message {
     font-size: 11px;
     line-height: 1.5;

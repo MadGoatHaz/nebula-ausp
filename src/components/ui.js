@@ -1,15 +1,9 @@
 export function createUI() {
     const infoPanel = document.getElementById('info-panel');
-    infoPanel.innerHTML = `
-        <div class="config-group-header">Live Metrics</div>
-        <div id="metrics-panel">
-            <div>FPS: <strong id="metric-fps">...</strong></div>
-            <div>Physics CPU: <strong id="metric-physics-cpu">...</strong> ms</div>
-            <div>Render Time: <strong id="metric-render-time">...</strong> ms</div>
-            <div>Live Particles: <strong id="metric-particles">...</strong></div>
-            <div>Particles Consumed: <strong id="metric-consumed">...</strong></div>
-        </div>
+    const rightPanel = document.getElementById('right-panel');
 
+    // Populate the main left panel
+    infoPanel.innerHTML = `
         <div class="config-group-header">Comprehensive Benchmark</div>
         <div id="benchmark-status">Ready for standard test.</div>
         <button id="benchmark-btn">Run Benchmark</button>
@@ -69,6 +63,28 @@ export function createUI() {
         <div id="version-info"></div>
     `;
 
+    // Populate the new right panel
+    rightPanel.innerHTML = `
+        <div class="config-group-header">System Info</div>
+        <div id="system-info-panel">
+             <div>CPU Cores: <strong id="spec-cpu">...</strong></div>
+             <div>GPU: <strong id="spec-gpu">...</strong></div>
+        </div>
+
+        <div class="config-group-header">Live Metrics</div>
+        <div id="metrics-panel">
+            <div>FPS: <strong id="metric-fps">...</strong></div>
+            <div>Live Particles: <strong id="metric-particles">...</strong></div>
+            <hr>
+            <div>Physics CPU Time: <strong id="metric-physics-cpu">...</strong> ms</div>
+            <canvas id="cpu-graph" class="perf-graph"></canvas>
+            <div>GPU Render Time: <strong id="metric-render-time">...</strong> ms</div>
+            <canvas id="gpu-graph" class="perf-graph"></canvas>
+        </div>
+
+        <button id="toggle-controls-btn">Toggle Post-FX Controls</button>
+    `;
+
     return {
         logPanel: document.getElementById('log-panel-container'),
         versionInfo: document.getElementById('version-info'),
@@ -77,13 +93,20 @@ export function createUI() {
         downloadLogBtn: document.getElementById('download-log-btn'),
         submitScoreBtn: document.getElementById('submit-score-btn'),
         leaderboardBtn: document.getElementById('leaderboard-btn'),
+        toggleControlsBtn: document.getElementById('toggle-controls-btn'),
         topScoresPanel: document.getElementById('top-scores-panel'),
         metrics: {
             fps: document.getElementById('metric-fps'),
             physicsCpu: document.getElementById('metric-physics-cpu'),
             renderTime: document.getElementById('metric-render-time'),
             particles: document.getElementById('metric-particles'),
-            consumed: document.getElementById('metric-consumed'),
+            consumed: document.getElementById('metric-consumed'), // This element is no longer in the DOM but might be used elsewhere
+            cpuGraph: document.getElementById('cpu-graph'),
+            gpuGraph: document.getElementById('gpu-graph'),
+        },
+        systemInfo: {
+            cpu: document.getElementById('spec-cpu'),
+            gpu: document.getElementById('spec-gpu'),
         },
         sandboxControls: {
             particles: document.getElementById('sandbox-particles'),
