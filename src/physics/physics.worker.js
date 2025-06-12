@@ -92,29 +92,27 @@ function applyForces(dt) {
 }
 
 function resetParticles(newParticleCount) {
-    const oldTotalCount = currentParticleCount;
     currentParticleCount = Math.min(maxParticles, newParticleCount);
 
-    if (currentParticleCount > oldTotalCount) {
-        for (let i = oldTotalCount; i < currentParticleCount; i++) {
-            const i6 = i * STRIDE;
-            const radius = 2000 + Math.random() * 8000;
-            const theta = 2 * Math.PI * Math.random();
-            const phi = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
-            const x = radius * Math.cos(theta) * Math.cos(phi);
-            const y = radius * Math.sin(phi) * 0.5;
-            const z = radius * Math.sin(theta) * Math.cos(phi);
-            dataView[i6] = x; dataView[i6 + 1] = y; dataView[i6 + 2] = z;
-            
-            const velMag = Math.sqrt(G * blackHoleMass / radius) * (0.8 + Math.random() * 0.2);
-            const tangent = new Float32Array([-z, 0, x]);
-            const mag = Math.sqrt(tangent[0]*tangent[0] + tangent[2]*tangent[2]);
-            if (mag > 1e-9) { tangent[0] /= mag; tangent[2] /= mag; }
-            dataView[i6 + 3] = tangent[0] * velMag;
-            dataView[i6 + 4] = (Math.random() - 0.5) * 20;
-            dataView[i6 + 5] = tangent[2] * velMag;
-            masses[i] = 1 + Math.random() * 5;
-        }
+    // Always re-initialize all particles to ensure a clean state, starting after BH and Moon
+    for (let i = 2; i < currentParticleCount; i++) {
+        const i6 = i * STRIDE;
+        const radius = 2000 + Math.random() * 8000;
+        const theta = 2 * Math.PI * Math.random();
+        const phi = Math.acos(2 * Math.random() - 1) - Math.PI / 2;
+        const x = radius * Math.cos(theta) * Math.cos(phi);
+        const y = radius * Math.sin(phi) * 0.5;
+        const z = radius * Math.sin(theta) * Math.cos(phi);
+        dataView[i6] = x; dataView[i6 + 1] = y; dataView[i6 + 2] = z;
+        
+        const velMag = Math.sqrt(G * blackHoleMass / radius) * (0.8 + Math.random() * 0.2);
+        const tangent = new Float32Array([-z, 0, x]);
+        const mag = Math.sqrt(tangent[0]*tangent[0] + tangent[2]*tangent[2]);
+        if (mag > 1e-9) { tangent[0] /= mag; tangent[2] /= mag; }
+        dataView[i6 + 3] = tangent[0] * velMag;
+        dataView[i6 + 4] = (Math.random() - 0.5) * 20;
+        dataView[i6 + 5] = tangent[2] * velMag;
+        masses[i] = 1 + Math.random() * 5;
     }
 }
 
@@ -163,6 +161,12 @@ self.onmessage = (e) => {
         dataView[STRIDE] = data.moon_x;
         dataView[STRIDE+1] = data.moon_y;
         dataView[STRIDE+2] = data.moon_z;
+    }
+
+    // --- Acknowledge State Update ---
+    // If the particle count was changed, send a specific confirmation.
+    if (data.hasOwnProperty('particleCount') || data.hasOwnProperty('quality')) {
+        self.postMessage({ type: 'state_updated' });
     }
 
     // --- Physics Calculation ---

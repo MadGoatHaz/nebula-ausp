@@ -56,6 +56,7 @@ const simState = {
     physicsQuality: 'simple',
 };
 let stateChanged = false; // Flag to indicate if we need to send updates
+let resolveStateUpdate = null; // To resolve the promise after worker confirms state change
 
 // --- Animation-Scoped Temp Variables ---
 // These are declared outside the animation loop to avoid re-creation on every frame.
@@ -132,6 +133,13 @@ async function main() {
                     console.error("Received error from worker:", e.data.error);
                     alert(`Physics worker crashed!\\n\\nMessage: ${e.data.error.message}`);
                     return; // Don't proceed to buffer logic
+                 case 'state_updated':
+                    // The worker has confirmed the new state has been applied.
+                    if (resolveStateUpdate) {
+                        resolveStateUpdate();
+                        resolveStateUpdate = null; // Clear it for the next update
+                    }
+                    return;
             }
         }
         
@@ -267,6 +275,11 @@ async function main() {
                 simState.physicsQuality = newState.quality;
                 simState.particleCount = newState.particleCount;
                 stateChanged = true;
+
+                // Return a promise that will resolve when the worker confirms the update
+                return new Promise((resolve) => {
+                    resolveStateUpdate = resolve;
+                });
             };
 
             benchmarkController.start(log, logFunc, onBenchmarkStateChange, sceneElements, resolution, systemCapabilities);
@@ -331,6 +344,9 @@ function animate() {
     stats.renderTime.value = performance.now() - renderStartTime;
     if (ui.metrics.renderTime) ui.metrics.renderTime.textContent = stats.renderTime.value.toFixed(2);
     
+    // Feed metrics to the benchmark controller
+    benchmarkController.recordMetrics(stats.fps.value, stats.renderTime.value, stats.physicsCpu.value);
+
     // Update and draw graphs
     updatePerfGraph(perfHistory.cpu, stats.physicsCpu.value, ui.metrics.cpuGraph, '#ff5555');
     updatePerfGraph(perfHistory.gpu, stats.renderTime.value, ui.metrics.gpuGraph, '#00ffcc');

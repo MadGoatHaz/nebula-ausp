@@ -51,21 +51,21 @@ export class BenchmarkController {
         this.logMessage("Starting Comprehensive Benchmark...", 'warn');
         this.log.start(systemCapabilities, resolution);
         
-        this.runMaxQSearch();
+        this.runMaxQSearch(0);
     }
 
-    runMaxQSearch(count = 0) {
+    async runMaxQSearch(count = 0) {
         this.state = State.MAX_Q_SEARCH;
         this.currentParticleCount = count;
         this.logMessage(`[Max-Q Search] Testing ${count} particles...`, 'info');
         
-        this.onStateChange({ quality: 'complex', particleCount: count });
+        await this.onStateChange({ quality: 'complex', particleCount: count });
         
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
     }
 
-    runGpuTest() {
+    async runGpuTest() {
         this.state = State.GAUNTLET_GPU;
         this.currentParticleCount = this.maxQValue;
         this.logMessage(`[Gauntlet 1/3] Running GPU Stress Test with ${this.maxQValue} particles...`, 'warn');
@@ -74,13 +74,13 @@ export class BenchmarkController {
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        this.onStateChange({ quality: 'simple', particleCount: this.maxQValue });
+        await this.onStateChange({ quality: 'simple', particleCount: this.maxQValue });
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
     }
 
-    runCpuTest() {
+    async runCpuTest() {
         this.state = State.GAUNTLET_CPU;
         this.currentParticleCount = this.maxQValue;
         this.logMessage(`[Gauntlet 2/3] Running CPU Stress Test with ${this.maxQValue} particles...`, 'warn');
@@ -89,13 +89,13 @@ export class BenchmarkController {
         this.sceneElements.accretionDisk.visible = false;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = false);
 
-        this.onStateChange({ quality: 'extreme', particleCount: this.maxQValue });
+        await this.onStateChange({ quality: 'extreme', particleCount: this.maxQValue });
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
     }
 
-    runCombinedTest() {
+    async runCombinedTest() {
         this.state = State.GAUNTLET_COMBINED;
         this.currentParticleCount = this.maxQValue;
         this.logMessage(`[Gauntlet 3/3] Running Combined Stress Test with ${this.maxQValue} particles...`, 'warn');
@@ -104,7 +104,7 @@ export class BenchmarkController {
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        this.onStateChange({ quality: 'complex', particleCount: this.maxQValue });
+        await this.onStateChange({ quality: 'complex', particleCount: this.maxQValue });
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
