@@ -130,8 +130,9 @@ async function main() {
 
         switch (e.data.type) {
             case 'initialized':
-                // Worker is ready, kick off the first animation frame and physics step.
-                animationFrameId = requestAnimationFrame(animate);
+                // Worker is ready, kick off the render loop and the first physics step.
+                renderLoop(); // Start the continuous render loop.
+                
                 physicsWorker.postMessage({
                     type: 'physics_update',
                     buffer: dataView.buffer,
@@ -145,12 +146,11 @@ async function main() {
                 break;
                 
             case 'physics_update':
-                // Physics step is complete. Update stats, render the new state, and kick off the next step.
+                // Physics step is complete. Update state and kick off the next physics step immediately.
+                // The rendering is happening independently in the renderLoop.
                 activeParticleCount = e.data.particleCount;
                 stats.consumed.value = e.data.consumedParticles;
                 
-                animationFrameId = requestAnimationFrame(animate);
-
                 const message = {
                     type: 'physics_update',
                     buffer: dataView.buffer,
@@ -282,9 +282,15 @@ async function main() {
     physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES });
 }
 
+// --- RENDER LOOP ---
+function renderLoop() {
+    animationFrameId = requestAnimationFrame(renderLoop);
+    animate();
+}
+
 // --- ANIMATION ---
 function animate() {
-    // THIS FUNCTION ONLY RENDERS. NO LOGIC, NO POSTMESSAGE, NO REQUESTANIMATIONFRAME.
+    // THIS FUNCTION ONLY RENDERS. NO LOGIC, NO POSTMESSAGE.
     if (!dataView) return;
 
     const now = performance.now();
@@ -343,6 +349,7 @@ function updateParticles(particleCount, elapsedTime) {
     particleInstances.instanceMatrix.needsUpdate = true;
     instanceColorAttribute.needsUpdate = true;
     instanceVelocityAttribute.needsUpdate = true;
+    jets.geometry.attributes.position.needsUpdate = true;
 }
 
 function updateJets(dt) {
