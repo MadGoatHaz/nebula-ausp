@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://i.imgur.com/YOUR_LOGO_URL.png" alt="Nebula Logo" width="150">
+  <img src="public/nebula-logo-trans.png" alt="Nebula Logo" width="150">
   <h1>Nebula AUSP</h1>
   <p><strong>The Adaptive Universal System Profiler</strong></p>
   <p>
@@ -8,8 +8,17 @@
   <p>
     <a href="https://github.com/MadGoatHaz/nebula-ausp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
     <a href="https://github.com/MadGoatHaz/nebula-ausp/actions"><img src="https://img.shields.io/github/actions/workflow/status/MadGoatHaz/nebula-ausp/main.yml?branch=main" alt="Build Status"></a>
+    <a href="https://madgoathaz.github.io/nebula-ausp/"><img src="https://img.shields.io/badge/Live-Demo-brightgreen" alt="Live Demo"></a>
   </p>
 </div>
+
+---
+
+## **Live Demo & Screenshot**
+
+**[Click here to view the live benchmark!](https://madgoathaz.github.io/nebula-ausp/)**
+
+![Nebula AUSP Screenshot](public/screenshot.png)
 
 ---
 

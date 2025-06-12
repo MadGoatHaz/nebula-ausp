@@ -1,7 +1,7 @@
 {
   "name": "nebula-ausp-fresh",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.20.0",
   "type": "module",
   "homepage": "https://MadGoatHaz.github.io/nebula-ausp",
   "scripts": {
