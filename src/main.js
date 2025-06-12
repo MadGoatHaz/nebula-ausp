@@ -114,85 +114,45 @@ async function main() {
 
     console.log('[main] Awaiting first message from worker...');
     physicsWorker.onmessage = (e) => {
+        // Handle non-buffer messages separately ---------------------------
         if (!e.data.buffer) {
-            // Handle non-buffer messages like benchmark updates separately
             switch (e.data.type) {
-                case 'benchmark_update':
-                    benchmarkController.handleWorkerUpdate(e.data.payload, log);
-                    ui.benchmarkStatusEl.textContent = benchmarkController.state;
-                    if (benchmarkController.state === State.SEARCHING_MAX_Q) {
-                        ui.metrics.fps.textContent = e.data.payload.fps.toFixed(1);
-                    }
-                    return; // Don't proceed to buffer logic
-                 case 'benchmark_complete':
-                    benchmarkController.handleCompletion(e.data.results, systemCapabilities, log);
-                    ui.benchmarkStatusEl.textContent = 'Benchmark Complete. Ready for next run.';
-                    ui.submitScoreBtn.disabled = false;
-                    return; // Don't proceed to buffer logic
-                 case 'worker_error':
-                    console.error("Received error from worker:", e.data.error);
-                    alert(`Physics worker crashed!\\n\\nMessage: ${e.data.error.message}`);
-                    return; // Don't proceed to buffer logic
-                 case 'state_updated':
-                    // The worker has confirmed the new state has been applied.
+                case 'state_updated':
                     if (resolveStateUpdate) {
                         resolveStateUpdate();
-                        resolveStateUpdate = null; // Clear it for the next update
+                        resolveStateUpdate = null;
                     }
+                    return;
+                case 'worker_error':
+                    console.error("Received error from worker:", e.data.error);
+                    alert(`Physics worker crashed!\n\nMessage: ${e.data.error.message}`);
                     return;
             }
         }
-        
-        // --- Buffer-based message handling ---
+
+        // Buffer-based messages -----------------------------------------
         dataView = new Float32Array(e.data.buffer);
 
         switch (e.data.type) {
             case 'initialized':
-                // Worker is ready, kick off the render loop and the first physics step.
-                renderLoop(); // Start the continuous render loop.
-                
-                physicsWorker.postMessage({
-                    type: 'physics_update',
-                    buffer: dataView.buffer,
-                    particleCount: simState.particleCount,
-                    bhMass: simState.bhMass,
-                    quality: simState.physicsQuality,
-                    moon_x: moon.position.x,
-                    moon_y: moon.position.y,
-                    moon_z: moon.position.z,
-                }, [dataView.buffer]);
+                // Worker is ready, kick off the render loop. We will send the first
+                // physics_update after the first animation frame so the render loop
+                // gets at least one buffer to draw.
+                bufferReady = true; // Ready to send first update during first frame
+                renderLoop();
                 break;
-                
+
             case 'physics_update':
-                // Physics step is complete. Update state and kick off the next physics step immediately.
-                // The rendering is happening independently in the renderLoop.
+                // Physics step finished; we now own the buffer until we hand it back.
                 stats.physicsCpu.value = performance.now() - stats.physicsCpu.lastTime;
                 activeParticleCount = e.data.particleCount;
                 stats.consumed.value = e.data.consumedParticles;
 
-                // On the first run, the worker won't have a particle count yet.
                 if (activeParticleCount === 0) {
                     activeParticleCount = simState.particleCount;
                 }
-                
-                const message = {
-                    type: 'physics_update',
-                    buffer: dataView.buffer,
-                    moon_x: moon.position.x,
-                    moon_y: moon.position.y,
-                    moon_z: moon.position.z,
-                };
 
-                // Piggy-back state changes if they have occurred
-                if (stateChanged) {
-                    message.particleCount = simState.particleCount;
-                    message.bhMass = simState.bhMass;
-                    message.quality = simState.physicsQuality;
-                    stateChanged = false; // Reset the flag
-                }
-                
-                stats.physicsCpu.lastTime = performance.now();
-                physicsWorker.postMessage(message, [dataView.buffer]);
+                bufferReady = true; // Flag for the render loop
                 break;
         }
     };
@@ -316,6 +276,8 @@ async function main() {
     physicsWorker.postMessage({ type: 'init', maxParticles: MAX_PARTICLES });
 }
 
+let bufferReady = false; // Indicates we have a buffer ready for this frame
+
 // --- RENDER LOOP ---
 function renderLoop() {
     animationFrameId = requestAnimationFrame(renderLoop);
@@ -367,6 +329,34 @@ function animate() {
     updateJets(dt);
 
     controls.update();
+
+    // ------------------------------------------------------------------
+    // After rendering, hand the buffer back to the worker for the next
+    // physics step. This guarantees the buffer is **not** detached until
+    // we've finished using it for this frame.
+    // ------------------------------------------------------------------
+    if (bufferReady && dataView && dataView.buffer.byteLength > 0) {
+        const message = {
+            type: 'physics_update',
+            buffer: dataView.buffer,
+            moon_x: moon.position.x,
+            moon_y: moon.position.y,
+            moon_z: moon.position.z,
+        };
+
+        // Piggy-back any simulation state changes requested by the UI or
+        // benchmark controller.
+        if (stateChanged) {
+            message.particleCount = simState.particleCount;
+            message.bhMass = simState.bhMass;
+            message.quality = simState.physicsQuality;
+            stateChanged = false;
+        }
+
+        stats.physicsCpu.lastTime = performance.now();
+        physicsWorker.postMessage(message, [dataView.buffer]);
+        bufferReady = false; // Will be set true when the worker responds
+    }
 }
 
 function updatePerfGraph(history, value, canvas, color) {
