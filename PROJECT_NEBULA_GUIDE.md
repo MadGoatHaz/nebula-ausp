@@ -1,6 +1,6 @@
 # Project Nebula: Definitive Handoff & Developer's Guide
-**Version:** v100 (Stable Baseline, Post-Fixes)
-**Status:** Phase 2 Complete. Ready for new development.
+**Version:** v0.20.0 (Stable Baseline, Post-Fixes)
+**Status:** Phase 1 Complete. Phase 2 In Progress.
 
 ## 1. Executive Summary
 
@@ -25,12 +25,14 @@ This section outlines the inviolable rules of our collaboration, previously capt
 The application is built on a modular Vite.js framework. This structure separates concerns and allows for efficient, targeted development.
 
 
-Markdown
+```
 /nebula-ausp/
 ├── /src/
 │ ├── /components/
 │ │ ├── ui.js # Creates and returns all UI DOM elements. No event logic.
-│ │ └── scene.js # Creates and returns all THREE.js objects (scene, camera, meshes, composer).
+│ │ ├── scene.js # Creates and returns all THREE.js objects (scene, camera, meshes, composer).
+│ │ ├── FilmShader.js # Custom shader for film grain effect.
+│ │ └── VignetteShader.js # Custom shader for vignette effect.
 │ ├── /core/
 │ │ ├── benchmark.js # The "BenchmarkController" state machine. The brain of the benchmark.
 │ │ ├── log.js # Class for generating the downloadable benchmark log file.
@@ -39,16 +41,28 @@ Markdown
 │ │ └── physics.worker.js # The self-contained physics engine. Runs in a separate thread.
 │ ├── main.js # The main entry point. Initializes all modules and connects them with event listeners.
 │ └── style.css # All application styles.
+├── /public/ # Static assets that are copied directly to the build output.
+│ ├── NebulaLogo.png # Project logo.
+│ └── screenshot.png # Project screenshot for README.
+├── /.github/workflows/ # GitHub Actions workflows.
+│ └── deploy.yml # Workflow for deploying to GitHub Pages.
 ├── .gitignore # Specifies files and folders for Git to ignore.
 ├── index.html # The main HTML shell.
+├── leaderboard.html # The leaderboard page.
 ├── package.json # Project dependencies and scripts.
+├── README.md # Project overview and quick start guide.
 ├── PROJECT_NEBULA_GUIDE.md # This document.
-└── vite.config.js # Vite configuration (e.g., for COOP/COEP headers).
+├── RUST_SETUP.md # Guide for setting up the Rust development environment for Phase 3.
+├── AI_COLLABORATION_WORKFLOW.md # Rules for AI collaboration.
+├── server.js # Simple Express server for the leaderboard.
+└── vite.config.js # Vite configuration.
+```
+
 ## 4. Core Systems Explained
 
 ### 4.1. The Rendering Pipeline
 - The renderer is built with **Three.js**.
-- To ensure maximum stability across different hardware, the post-processing pipeline is simple and robust: `RenderPass` -> `UnrealBloomPass`.
+- To ensure maximum stability across different hardware, the post-processing pipeline is simple and robust: `RenderPass` -> `UnrealBloomPass` -> `FilmPass` -> `VignettePass`.
 - **DO:** Add new visual effects as `ShaderPass` or other standard passes *between* the `RenderPass` and the `UnrealBloomPass`.
 - **DO NOT:** Manually call `renderer.clear()` when using an `EffectComposer`. The composer manages the clear state itself.
 - **DO NOT:** Use unconventional feedback loops or multi-pass rendering unless absolutely necessary and thoroughly tested, as this was a major source of past failures.
@@ -102,24 +116,40 @@ To prevent repeating history, we document our critical failures and the lessons 
     *   **Root Cause:** A series of incorrect attempts to bundle the web worker for production. Manual path construction and placing the worker in the `/public` directory led to a state where the browser was either looking for the worker in the wrong place or loading a stale, incorrect version.
     *   **Lesson:** Stick to the standards. The Vite build system is designed to handle web workers correctly out of the box. The definitive solution was to revert all workarounds and use the standard, modern `new Worker(new URL('./path/to/worker.js', import.meta.url))` syntax. This allows Vite to correctly resolve and bundle the worker for any environment.
 
+*   **Case File #G: The Benchmark Synchronization Failure**
+    *   **Symptom:** Benchmark always reported "Infinity" as the final score and showed 0 particles in all tests.
+    *   **Root Cause:** The benchmark controller was not waiting for the physics worker to confirm it had updated the simulation state before proceeding with measurements. This race condition caused the benchmark to measure an empty scene.
+    *   **Lesson:** When dealing with asynchronous operations, especially across threads, always implement a confirmation mechanism to ensure operations are completed before proceeding with dependent tasks.
+
 ## 6. Future Roadmap
 
-### Phase 2: Leaderboard & Data Integration (✅ Complete)
-*   **Status:** ✅ (Complete)
-*   **Objective:** Create a backend and frontend for a live, public leaderboard.
-*   **Key Tasks:**
-    - [x] Implement a robust `SystemInfo` collector.
-    - [x] Build a "Submit Score" UI flow.
-    - [x] Build a public leaderboard page.
-    - [x] Build a backend API and database (JSON file-based) for submissions.
+### Phase 1: Foundation & Core Benchmark
+*   **Status:** ✅ **Complete**
+*   **Objective:** Establish a robust, modern architecture and implement the core multi-stage benchmark "gauntlet."
+*   **Key Results:**
+    - [x] **Modern Tooling:** Project fully migrated to Vite.js for a blazing-fast development experience and optimized builds.
+    - [x] **Decoupled Architecture:** Physics engine isolated in a Web Worker, ensuring a smooth, non-blocking UI.
+    - [x] **Adaptive Max-Q Search:** Initial benchmark stage that intelligently finds the maximum particle load a system can handle at a target FPS.
+    - [x] **Gauntlet Implemented:** Multi-stage stress tests for GPU (fill-rate, shaders), CPU (physics, collisions), and combined system load.
+    - [x] **Scoring v1.0:** A foundational scoring algorithm that provides a comprehensive and comparable metric based on gauntlet results.
 
-### Phase 3: Capability-Aware Bonus Tests
-*   **Status:** 🔲 (Planned)
-*   **Objective:** Implement advanced, capability-gated bonus tests.
+### Phase 2: Leaderboard & Community
+*   **Status:** 🔳 **In Progress**
+*   **Objective:** Build the backend services and frontend UI for a global leaderboard, turning a personal tool into a community platform.
 *   **Key Tasks:**
-    - [ ] **WASM/SIMD Physics Test**
-    - [ ] **WebGPU Compute Test**
-    - [ ] **WebGPU Ray Tracing Test**
+    - [ ] **System Info Collector:** Enhance the system profiler to gather more detailed (but still privacy-respecting) hardware information to accompany scores.
+    - [ ] **Backend API:** Develop a lightweight, serverless backend (e.g., using Cloudflare Workers) to securely receive and process benchmark submissions.
+    - [ ] **Persistent Storage:** Implement a reliable database (e.g., KV store, D1, or PostgreSQL) to store scores and system profiles.
+    - [ ] **Submission UI:** Refine the "Submit Score" flow within the application for a seamless user experience.
+    - [ ] **Live Leaderboard:** Create a public-facing leaderboard page with filtering, sorting, and direct links to individual results.
+
+### Phase 3: The Next Frontier - Advanced Testing
+*   **Status:** 🔲 **Planned**
+*   **Objective:** Push the boundaries of web-based benchmarking by leveraging cutting-edge browser technologies to reward and analyze modern hardware.
+*   **Key Tasks:**
+    - [ ] **WASM/SIMD Physics Test:** Develop a hyper-optimized physics simulation in Rust or C++, compiled to WebAssembly. This will serve as a bonus test to measure raw, single-threaded CPU performance, leveraging SIMD where available.
+    - [ ] **GPGPU Compute Test:** Move the entire N-body physics simulation from a Web Worker to a WebGPU compute shader. This will be a massive GPGPU test, measuring the parallel processing power of modern GPUs.
+    - [ ] **WebGPU Ray Tracing Test:** Create a new, visually stunning scene specifically designed to test dedicated RT hardware. This advanced test will only run if the browser reports support for the WebGPU ray-tracing pipeline, providing a true measure of next-generation graphics capabilities.
 
 ## 7. Local Development
 
@@ -128,32 +158,6 @@ To prevent repeating history, we document our critical failures and the lessons 
 3.  **Install dependencies:** `npm install`
 4.  **Run the dev server:** `npm run dev`
 5.  Open the provided URL (e.g., `http://localhost:5173`) in your browser.
-
-## Phase 1: Core Simulation & Visualization (Complete)
-
--   **[✓]** Develop a stable `n-body` physics simulation running in a Web Worker.
--   **[✓]** Implement a `SharedArrayBuffer` for zero-copy data transfer between the worker and the main thread.
--   **[✓]** Create a visually appealing representation of the black hole, accretion disk, and particles using Three.js.
--   **[✓]** Basic user controls for sandbox mode (particle count, black hole mass).
--   **[✓]** Initial post-processing effects (bloom).
-
-## Phase 2: Benchmarking & Performance Profiling (Complete)
-
--   **[✓]** Create a comprehensive benchmark mode to test CPU and GPU performance.
--   **[✓]** The benchmark systematically increases particle count and records performance metrics (FPS, GPU time, CPU time).
--   **[✓]** Implement a `Profiler` to gather detailed system information (OS, CPU, GPU, Browser, RAM).
--   **[✓]** Add a UI to display benchmark progress and final results.
--   **[✓]** Add a "Submit Score" feature flow (UI only, console log for now).
-
-## Phase 3: Leaderboard & Advanced Features (In Progress -> Complete)
-
--   **[✓]** Build a static leaderboard page (`leaderboard.html`) to display top scores.
--   **[✓]** Create a multi-page build process in Vite to handle `index.html` and `leaderboard.html`.
--   **[✓]** Add a "Top 3 Scores" panel to the main UI, fetching data from a mock JSON file.
--   **[✓]** Implement advanced visual shaders for particles (motion blur, shimmer).
--   **[✓]** Add more post-processing effects (film grain, vignette) with GUI controls.
--   **[✓]** Implement a back-end service to handle score submission and retrieval.
--   **[ ]** Add celestial events (e.g., a star being consumed by the black hole).
 
 ## Key Learnings & Technical Resolutions
 
@@ -170,9 +174,13 @@ To prevent repeating history, we document our critical failures and the lessons 
     -   The particle slider was unresponsive because the main thread and worker had different ideas about the authoritative particle count. The main thread now only renders the number of particles present in the data buffer received from the worker.
     -   The initial particle material was swapped for a `ShaderMaterial` to implement custom effects like motion blur (stretching particles based on velocity) and making them brighter to better interact with the bloom post-processing effect.
 
+5.  **Benchmark Synchronization:**
+    -   The benchmark was failing because it wasn't waiting for the physics worker to confirm state changes before proceeding with measurements. This was fixed by implementing a Promise-based system that pauses the benchmark until the worker confirms the simulation state has been updated.
+
 ## Future Work & Next Steps
 
--   **Leaderboard Backend:** The next major step for Phase 3 is to replace the mock JSON data with a real backend service (e.g., using Firebase, Supabase, or a custom Node.js server) to create a persistent, global leaderboard.
+-   **Leaderboard Backend:** The next major step for Phase 2 is to replace the mock JSON data with a real backend service (e.g., using Firebase, Supabase, or a custom Node.js server) to create a persistent, global leaderboard.
 -   **Celestial Events:** Introduce scripted or random events, such as a star passing too close to the black hole and being torn apart, creating a spectacular visual showcase.
 -   **Code Refinements:** Continue to refactor and optimize the codebase, particularly in the post-processing chain and particle rendering systems.
 -   **Sound Design:** Add ambient sound effects and music to enhance the atmosphere.
+-   **WASM Physics:** Begin exploration of WebAssembly-based physics simulation for Phase 3, following the guidelines in `RUST_SETUP.md`.
