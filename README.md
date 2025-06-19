@@ -62,7 +62,7 @@ The project is built with a modern, modular frontend stack.
 If you find Nebula AUSP impressive, please consider supporting its development. Your contributions help fund the research and development of next-generation web benchmarks.
 
 - **[Sponsor on GitHub](https://github.com/sponsors/MadGoatHaz)**
-- **[Send a tip via PayPal](https://www.paypal.com/paypalme/ghazlett)**
+- **[Send a tip via PayPal](https://paypal.me/garretthazlett)**
 
 ---
 
