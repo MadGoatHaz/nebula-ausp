@@ -57,6 +57,15 @@ The project is built with a modern, modular frontend stack.
 
 ---
 
+### ❤️ Support This Project
+
+If you find Nebula AUSP impressive, please consider supporting its development. Your contributions help fund the research and development of next-generation web benchmarks.
+
+- **[Sponsor on GitHub](https://github.com/sponsors/MadGoatHaz)**
+- **[Send a tip via PayPal](https://www.paypal.com/paypalme/ghazlett)**
+
+---
+
 ### **Development Roadmap**
 Our vision for Nebula is ambitious. We're building the ultimate tool for system profiling on the web, and our progress is tracked in phases. See the [open issues](https://github.com/MadGoatHaz/nebula-ausp/issues) for a full list of proposed features and known bugs.
 
@@ -114,4 +123,4 @@ To get a local copy up and running, follow these simple steps.
     ```
 
 ---
-> **License** · Distributed under the MIT License. See `LICENSE` for more information.
+> **License** · Distributed under the GPL-3.0 License. See `LICENSE` for more information.
