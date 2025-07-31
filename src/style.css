@@ -13,8 +13,8 @@ body {
     background-color: #000; 
     font-family: 'Roboto Mono', monospace; 
 }
-canvas { 
-    display: block; 
+canvas {
+    display: block;
     position: fixed;
     top: 0;
     left: 0;
@@ -45,7 +45,7 @@ canvas {
     pointer-events: auto;
     flex-shrink: 0;
     position: relative;
-    z-index: 10;
+    z-index: 100;
     max-height: calc(100% - 20px);
     overflow-y: auto;
 }
@@ -98,6 +98,32 @@ canvas {
 .config-item label { flex-shrink: 0; margin-right: 10px; cursor: help; }
 .config-group-header { font-size: 14px; color: var(--primary-color); margin-top: 15px; border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px; }
 #metrics-panel { font-size: 12px; line-height: 1.6; }
+
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 2px 0;
+}
+
+.metric-label {
+    color: #aaa;
+    font-size: 11px;
+}
+
+.metric-value {
+    font-weight: bold;
+    color: var(--primary-color);
+    font-size: 12px;
+}
+
+.metric-unit {
+    color: #888;
+    font-size: 10px;
+    margin-left: 4px;
+}
+
 .info-box { font-size: 11px; line-height: 1.5; background: #222; padding: 8px; border-radius: 4px; margin-top: 10px; }
 
 /* --- Submission Modal --- */
@@ -144,6 +170,54 @@ canvas {
     color: var(--primary-color);
     display: inline-block;
     width: 120px;
+}
+#modal-name-input {
+    margin: 15px 0;
+    text-align: left;
+}
+#modal-name-input label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-color);
+    font-size: 13px;
+}
+#modal-name-input input {
+    width: 100%;
+    padding: 10px;
+    background: var(--dark-grey);
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: var(--text-color);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+#modal-name-input input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 255, 204, 0.2);
+}
+.modal-message {
+    padding: 10px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 12px;
+    text-align: center;
+}
+.modal-message.success {
+    background: rgba(76, 175, 80, 0.2);
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+}
+.modal-message.error {
+    background: rgba(255, 85, 85, 0.2);
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+.modal-message.loading {
+    background: rgba(255, 235, 59, 0.2);
+    border: 1px solid var(--warn-color);
+    color: var(--warn-color);
 }
 #submission-buttons {
     display: flex;
@@ -257,4 +331,20 @@ canvas {
     padding: 5px 10px;
     border-radius: 3px;
     z-index: 1000;
+}
+
+.advanced-capabilities-header {
+    font-size: 13px;
+    color: var(--primary-color);
+    margin-top: 10px;
+    border-top: 1px solid #444;
+    padding-top: 8px;
+}
+
+.capability-supported {
+    color: var(--success-color);
+}
+
+.capability-unsupported {
+    color: var(--danger-color);
 }

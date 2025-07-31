@@ -57,7 +57,8 @@ export function createUI() {
                 - Use the <strong>Sandbox Controls</strong> to experiment freely.<br>
                 - Run the <strong>Comprehensive Benchmark</strong> for a standardized score.<br>
                 - View the <strong>Full Leaderboard</strong> to see how your system compares.<br>
-                - After a benchmark, you can <strong>Submit Score</strong> to the public leaderboard.
+                - After a benchmark, you can <strong>Submit Score</strong> to the public leaderboard.<br>
+                - Download detailed logs using the <strong>Download Log</strong> button.
             </div>
         </details>
         <div id="version-info"></div>
@@ -73,13 +74,36 @@ export function createUI() {
 
         <div class="config-group-header">Live Metrics</div>
         <div id="metrics-panel">
-            <div>FPS: <strong id="metric-fps">...</strong></div>
-            <div>Live Particles: <strong id="metric-particles">...</strong></div>
+            <div class="metric-row">
+                <span class="metric-label">FPS:</span>
+                <span class="metric-value" id="metric-fps">...</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Live Particles:</span>
+                <span class="metric-value" id="metric-particles">...</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Consumed:</span>
+                <span class="metric-value" id="metric-consumed">0</span>
+            </div>
             <hr>
-            <div>Physics CPU Time: <strong id="metric-physics-cpu">...</strong> ms</div>
-            <canvas id="cpu-graph" class="perf-graph"></canvas>
-            <div>GPU Render Time: <strong id="metric-render-time">...</strong> ms</div>
-            <canvas id="gpu-graph" class="perf-graph"></canvas>
+            <div class="metric-row">
+                <span class="metric-label">Physics CPU:</span>
+                <span class="metric-value" id="metric-physics-cpu">...</span>
+                <span class="metric-unit">ms</span>
+            </div>
+            <canvas id="cpu-graph" class="perf-graph" width="200" height="60"></canvas>
+            <div class="metric-row">
+                <span class="metric-label">GPU Render:</span>
+                <span class="metric-value" id="metric-render-time">...</span>
+                <span class="metric-unit">ms</span>
+            </div>
+            <canvas id="gpu-graph" class="perf-graph" width="200" height="60"></canvas>
+            <div class="metric-row">
+                <span class="metric-label">Memory:</span>
+                <span class="metric-value" id="metric-memory">...</span>
+                <span class="metric-unit">MB</span>
+            </div>
         </div>
 
         <button id="toggle-controls-btn">Toggle Post-FX Controls</button>
@@ -100,7 +124,8 @@ export function createUI() {
             physicsCpu: document.getElementById('metric-physics-cpu'),
             renderTime: document.getElementById('metric-render-time'),
             particles: document.getElementById('metric-particles'),
-            consumed: document.getElementById('metric-consumed'), // This element is no longer in the DOM but might be used elsewhere
+            consumed: document.getElementById('metric-consumed'),
+            memory: document.getElementById('metric-memory'),
             cpuGraph: document.getElementById('cpu-graph'),
             gpuGraph: document.getElementById('gpu-graph'),
         },

@@ -184,3 +184,89 @@ To prevent repeating history, we document our critical failures and the lessons 
 -   **Code Refinements:** Continue to refactor and optimize the codebase, particularly in the post-processing chain and particle rendering systems.
 -   **Sound Design:** Add ambient sound effects and music to enhance the atmosphere.
 -   **WASM Physics:** Begin exploration of WebAssembly-based physics simulation for Phase 3, following the guidelines in `RUST_SETUP.md`.
+
+## Critical Bug Fix: Particle Rendering Issue (July 2025)
+
+### Problem Description
+In July 2025, a critical bug was discovered where the main physics particles (star particles) were not rendering correctly, although jet particles and other visual elements were working properly. This issue was traced to improper handling of instanced buffer attributes in the particle rendering system.
+
+### Root Cause Analysis
+The issue was located in the `updateParticles` function in `src/main.js` (lines 999-1008). The original code attempted to update instanced attributes by replacing entire buffer arrays:
+
+```javascript
+// PROBLEMATIC CODE (Lines 999-1008 in src/main.js)
+// Update attributes directly for better performance
+if (instanceColorAttribute && instanceVelocityAttribute) {
+    // Truncate arrays to actual visible particle count
+    const visibleColors = new Float32Array(colors.buffer, 0, visibleParticles * 3);
+    const visibleVelocities = new Float32Array(velocities.buffer, 0, visibleParticles * 3);
+    
+    instanceColorAttribute.setArray(visibleColors);
+    instanceVelocityAttribute.setArray(visibleVelocities);
+    instanceColorAttribute.needsUpdate = true;
+    instanceVelocityAttribute.needsUpdate = true;
+}
+```
+
+The problem with this approach was that the instanced buffer attributes were originally created with fixed-size buffers to accommodate the maximum number of particles (`MAX_PARTICLES = 500000`). When `setArray()` was called to replace these buffers with smaller arrays, it caused rendering issues because:
+
+1. **Buffer Size Mismatch**: The new arrays were much smaller than the original fixed-size buffers
+2. **Memory Management**: Replacing the entire buffer array disrupted the WebGL buffer management
+3. **Attribute Binding**: The instanced attributes lost their proper binding to the mesh geometry
+
+### Solution Implementation
+The fix involved properly updating the existing attribute buffers using the `setXYZ` methods instead of replacing entire arrays:
+
+```javascript
+// FIXED CODE (Lines 999-1008 in src/main.js)
+// Update attributes directly for better performance
+if (instanceColorAttribute && instanceVelocityAttribute) {
+    // Update color attributes
+    for (let i = 0; i < visibleParticles; i++) {
+        const colorOffset = i * 3;
+        instanceColorAttribute.setXYZ(
+            i, 
+            colors[colorOffset], 
+            colors[colorOffset + 1], 
+            colors[colorOffset + 2]
+        );
+    }
+    
+    // Update velocity attributes
+    for (let i = 0; i < visibleParticles; i++) {
+        const velocityOffset = i * 3;
+        instanceVelocityAttribute.setXYZ(
+            i, 
+            velocities[velocityOffset], 
+            velocities[velocityOffset + 1], 
+            velocities[velocityOffset + 2]
+        );
+    }
+    
+    // Mark attributes as needing update
+    instanceColorAttribute.needsUpdate = true;
+    instanceVelocityAttribute.needsUpdate = true;
+}
+```
+
+### Key Changes and Benefits
+1. **Proper Attribute Updates**: Using `setXYZ()` methods to update individual attribute components
+2. **Preserved Buffer Integrity**: Maintaining the original fixed-size buffer structure
+3. **Efficient Memory Usage**: Avoiding unnecessary buffer reallocation
+4. **Consistent Rendering**: Ensuring proper WebGL buffer binding and rendering
+
+### Testing and Verification
+After implementing this fix:
+- Main physics particles (star particles) now render correctly
+- Particles load immediately on application startup
+- Jet particles continue to work correctly
+- All visual elements display as expected
+- Performance remains optimal
+
+### Lessons Learned
+1. **Buffer Management**: When working with instanced attributes in Three.js, it's crucial to maintain the original buffer structure rather than replacing entire arrays
+2. **Debugging Approach**: Adding comprehensive logging helped identify the buffer transfer issues between main thread and worker
+3. **Performance Considerations**: The `setXYZ` approach is actually more efficient than buffer replacement for partial updates
+4. **Backward Compatibility**: This fix maintains compatibility with existing particle physics calculations while resolving the rendering issue
+
+This fix restored the core functionality of the Nebula AUSP particle system and ensures a smooth user experience for both sandbox exploration and benchmark testing.

@@ -7,16 +7,47 @@ import { FilmShader } from './FilmShader.js';
 import { VignetteShader } from './VignetteShader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const STAR_COUNT = 15000;
+const STAR_COUNT = 2000; // Reduced significantly to improve performance
 const JET_PARTICLE_COUNT = 8000;
 
 export function createScene(gui) {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 40000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 10.0, 40000); // Increased near plane to reduce depth precision issues
     camera.position.set(0, 1000, 2500);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        precision: 'highp', // Use high precision for shaders
+        powerPreference: 'high-performance'
+    });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // Enable extensions for better performance
+    const gl = renderer.getContext();
+    if (gl) {
+        gl.disable(gl.DITHER); // Disable dithering for benchmark consistency
+        
+        // Enable anisotropic filtering if available
+        const anisotropyExt = gl.getExtension('EXT_texture_filter_anisotropic');
+        if (anisotropyExt) {
+            // Will set anisotropy on textures when created
+        }
+    }
+    
+    // Create a separate renderer for stars to avoid flickering
+    const starRenderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        depth: false,
+        stencil: false
+    });
+    starRenderer.setPixelRatio(window.devicePixelRatio);
+    starRenderer.setSize(window.innerWidth, window.innerHeight);
+    starRenderer.domElement.style.position = 'fixed';
+    starRenderer.domElement.style.top = '0';
+    starRenderer.domElement.style.left = '0';
+    starRenderer.domElement.style.zIndex = '-2'; // Behind main renderer
+    starRenderer.domElement.style.pointerEvents = 'none'; // Stars don't capture mouse events
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
     scene.add(ambientLight);
@@ -58,7 +89,49 @@ export function createScene(gui) {
     const starPositions = [];
     for (let i = 0; i < STAR_COUNT; i++) { starPositions.push(THREE.MathUtils.randFloatSpread(30000), THREE.MathUtils.randFloatSpread(30000), THREE.MathUtils.randFloatSpread(30000)); }
     starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-    scene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0x888888, size: 1.5 })));
+    
+    const starMaterial = new THREE.PointsMaterial({
+        color: 0x888888,
+        size: 2.0,
+        sizeAttenuation: false, // Keep stars the same size regardless of distance
+        depthWrite: false, // Don't write to depth buffer to avoid z-fighting
+        depthTest: false, // Don't do depth testing for stars to ensure they're always visible
+        transparent: true,
+        blending: THREE.AdditiveBlending // Use additive blending to reduce flickering
+    });
+    
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    stars.renderOrder = -10; // Render stars first to ensure they're always visible
+    scene.add(stars);
+    
+    // Add conservative depth offset to reduce z-fighting
+    stars.onBeforeRender = function(renderer, scene, camera, geometry, material, group) {
+        const gl = renderer.getContext();
+        gl.enable(gl.POLYGON_OFFSET_POINT);
+        gl.polygonOffset(-1, -1);
+    };
+    stars.onAfterRender = function(renderer, scene, camera, geometry, material, group) {
+        const gl = renderer.getContext();
+        gl.disable(gl.POLYGON_OFFSET_POINT);
+    };
+    
+    // Add a method to update star positions for a subtle animation effect
+    let starTime = 0;
+    const updateStars = (deltaTime) => {
+        starTime += deltaTime * 0.1;
+        // Simple star twinkle effect
+        const colors = starGeometry.attributes.color ? starGeometry.attributes.color.array : null;
+        if (colors) {
+            for (let i = 0; i < STAR_COUNT; i++) {
+                const idx = i * 3;
+                const twinkle = 0.8 + 0.2 * Math.sin(starTime + i * 0.1);
+                colors[idx] = 0.88 * twinkle;     // R
+                colors[idx + 1] = 0.88 * twinkle; // G
+                colors[idx + 2] = 0.88 * twinkle; // B
+            }
+            starGeometry.attributes.color.needsUpdate = true;
+        }
+    };
     
     const photonRing = new THREE.Mesh(new THREE.RingGeometry(105, 115, 128), new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.8 }));
     photonRing.rotation.x = Math.PI / 2;
@@ -99,9 +172,40 @@ export function createScene(gui) {
     scene.add(accretionDisk);
 
     const jetGeometry = new THREE.BufferGeometry();
-    jetGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(JET_PARTICLE_COUNT * 3), 3));
-    const jets = new THREE.Points(jetGeometry, new THREE.PointsMaterial({ color: 0x00aaff, size: 3.5, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.7, transparent: true }));
+    // Initialize jet positions correctly so they start at the black hole poles
+    const jetPositions = new Float32Array(JET_PARTICLE_COUNT * 3);
+    for (let i = 0; i < JET_PARTICLE_COUNT; i++) {
+        const idx = i * 3;
+        jetPositions[idx] = 0;     // x
+        jetPositions[idx + 1] = 0; // y (will be set to ±110 in updateJets)
+        jetPositions[idx + 2] = 0; // z
+    }
+    jetGeometry.setAttribute('position', new THREE.Float32BufferAttribute(jetPositions, 3));
+    const jetMaterial = new THREE.PointsMaterial({
+        color: 0x00aaff,
+        size: 3.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        opacity: 0.7,
+        transparent: true,
+        sizeAttenuation: true // Enable size attenuation for better depth perception
+    });
+    const jets = new THREE.Points(jetGeometry, jetMaterial);
+    jets.renderOrder = 5; // Render jets after stars but before main particles
     scene.add(jets);
+    
+    // Add conservative depth offset to reduce z-fighting for jets
+    jets.onBeforeRender = function(renderer, scene, camera, geometry, material, group) {
+        const gl = renderer.getContext();
+        gl.enable(gl.POLYGON_OFFSET_POINT);
+        gl.polygonOffset(-0.5, -0.5);
+    };
+    jets.onAfterRender = function(renderer, scene, camera, geometry, material, group) {
+        const gl = renderer.getContext();
+        gl.disable(gl.POLYGON_OFFSET_POINT);
+    };
+    
     const jetParticles = Array.from({ length: JET_PARTICLE_COUNT }, () => ({ velocity: new THREE.Vector3(), lifetime: 0, initialLifetime: 1 }));
 
     const moon = new THREE.Mesh( new THREE.SphereGeometry(20, 32, 32), new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 2 }) );
@@ -212,6 +316,6 @@ export function createScene(gui) {
         composer.setSize(window.innerWidth, window.innerHeight);
     }
     window.addEventListener('resize', onResize);
-
-    return { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials, filmPass, vignettePass, gui };
+    
+    return { scene, camera, renderer, composer, controls, accretionDisk, diskMaterial, jets, jetParticles, moon, nebulaMaterials, filmPass, vignettePass, gui, stars, updateStars };
 }

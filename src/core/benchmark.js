@@ -39,6 +39,50 @@ export class BenchmarkController {
         this.sceneElements = null;
         this.currentParticleCount = 0;
         this.onStateChange = () => {}; // Callback for state changes
+        
+        // Particle management state
+        this.particleResetInProgress = false;
+        this.pendingParticleResets = [];
+    }
+    
+    // Enhanced particle count management with queuing
+    async setParticleCount(count) {
+        if (this.particleResetInProgress) {
+            // Queue the request
+            this.pendingParticleResets.push(count);
+            return Promise.resolve();
+        }
+        
+        this.particleResetInProgress = true;
+        
+        try {
+            if (this.onStateChange) {
+                await this.onStateChange({
+                    quality: this.getCurrentPhysicsQuality(),
+                    particleCount: count
+                });
+            }
+            this.currentParticleCount = count;
+        } finally {
+            this.particleResetInProgress = false;
+            
+            // Process pending requests
+            if (this.pendingParticleResets.length > 0) {
+                const nextCount = this.pendingParticleResets.shift();
+                return this.setParticleCount(nextCount);
+            }
+        }
+    }
+    
+    // Get current physics quality based on benchmark state
+    getCurrentPhysicsQuality() {
+        switch(this.state) {
+            case State.MAX_Q_SEARCH: return 'complex';
+            case State.GAUNTLET_GPU: return 'simple';
+            case State.GAUNTLET_CPU: return 'extreme';
+            case State.GAUNTLET_COMBINED: return 'complex';
+            default: return 'simple';
+        }
     }
 
     start(log, logMessage, onStateChange, sceneElements, resolution, systemCapabilities) {
@@ -56,10 +100,9 @@ export class BenchmarkController {
 
     async runMaxQSearch(count = 0) {
         this.state = State.MAX_Q_SEARCH;
-        this.currentParticleCount = count;
         this.logMessage(`[Max-Q Search] Testing ${count} particles...`, 'info');
         
-        await this.onStateChange({ quality: 'complex', particleCount: count });
+        await this.setParticleCount(count);
         
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -67,14 +110,13 @@ export class BenchmarkController {
 
     async runGpuTest() {
         this.state = State.GAUNTLET_GPU;
-        this.currentParticleCount = this.maxQValue;
         this.logMessage(`[Gauntlet 1/3] Running GPU Stress Test with ${this.maxQValue} particles...`, 'warn');
         
         this.sceneElements.composer.enabled = true;
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        await this.onStateChange({ quality: 'simple', particleCount: this.maxQValue });
+        await this.setParticleCount(this.maxQValue);
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -82,14 +124,13 @@ export class BenchmarkController {
 
     async runCpuTest() {
         this.state = State.GAUNTLET_CPU;
-        this.currentParticleCount = this.maxQValue;
         this.logMessage(`[Gauntlet 2/3] Running CPU Stress Test with ${this.maxQValue} particles...`, 'warn');
         
         this.sceneElements.composer.enabled = false; // Disable post-processing
         this.sceneElements.accretionDisk.visible = false;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = false);
 
-        await this.onStateChange({ quality: 'extreme', particleCount: this.maxQValue });
+        await this.setParticleCount(this.maxQValue);
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -97,14 +138,13 @@ export class BenchmarkController {
 
     async runCombinedTest() {
         this.state = State.GAUNTLET_COMBINED;
-        this.currentParticleCount = this.maxQValue;
         this.logMessage(`[Gauntlet 3/3] Running Combined Stress Test with ${this.maxQValue} particles...`, 'warn');
         
         this.sceneElements.composer.enabled = true;
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        await this.onStateChange({ quality: 'complex', particleCount: this.maxQValue });
+        await this.setParticleCount(this.maxQValue);
 
         this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
@@ -121,6 +161,9 @@ export class BenchmarkController {
     }
 
     evaluateStage() {
+        // Get detailed metrics before evaluating
+        const detailedMetrics = this.getDetailedMetrics();
+        
         switch(this.state) {
             case State.MAX_Q_SEARCH:
                 this.evaluateMaxQSearch();
@@ -128,16 +171,70 @@ export class BenchmarkController {
             case State.GAUNTLET_GPU:
                 this.results.gpu.avgGpuTime = calculateTrimmedMean(this.metrics.gpu);
                 this.logMessage(`GPU Test Complete. Avg Render Time: ${this.results.gpu.avgGpuTime.toFixed(2)}ms`, 'success');
+                
+                // Log detailed metrics
+                this.log.addStage({
+                    name: 'GPU Stress',
+                    ...this.results.gpu,
+                    particles: this.maxQValue,
+                    quality: 'simple',
+                    detailedMetrics: {
+                        minGpuTime: detailedMetrics.gpu?.min,
+                        maxGpuTime: detailedMetrics.gpu?.max,
+                        gpuStdDev: detailedMetrics.gpu?.stdDev,
+                        minFps: detailedMetrics.fps?.min,
+                        maxFps: detailedMetrics.fps?.max,
+                        fpsStdDev: detailedMetrics.fps?.stdDev
+                    }
+                });
+                
                 this.runCpuTest();
                 break;
             case State.GAUNTLET_CPU:
                 this.results.cpu.avgCpuTime = calculateTrimmedMean(this.metrics.cpu);
                 this.logMessage(`CPU Test Complete. Avg Physics Time: ${this.results.cpu.avgCpuTime.toFixed(2)}ms`, 'success');
+                
+                // Log detailed metrics
+                this.log.addStage({
+                    name: 'CPU Stress',
+                    ...this.results.cpu,
+                    particles: this.maxQValue,
+                    quality: 'extreme',
+                    detailedMetrics: {
+                        minCpuTime: detailedMetrics.cpu?.min,
+                        maxCpuTime: detailedMetrics.cpu?.max,
+                        cpuStdDev: detailedMetrics.cpu?.stdDev,
+                        minFps: detailedMetrics.fps?.min,
+                        maxFps: detailedMetrics.fps?.max,
+                        fpsStdDev: detailedMetrics.fps?.stdDev
+                    }
+                });
+                
                 this.runCombinedTest();
                 break;
             case State.GAUNTLET_COMBINED:
                 this.results.combined.avgFps = calculateTrimmedMean(this.metrics.fps);
                 this.logMessage(`Combined Test Complete. Avg FPS: ${this.results.combined.avgFps.toFixed(1)}`, 'success');
+                
+                // Log detailed metrics
+                this.log.addStage({
+                    name: 'Combined',
+                    ...this.results.combined,
+                    particles: this.maxQValue,
+                    quality: 'complex',
+                    detailedMetrics: {
+                        minFps: detailedMetrics.fps?.min,
+                        maxFps: detailedMetrics.fps?.max,
+                        fpsStdDev: detailedMetrics.fps?.stdDev,
+                        minGpuTime: detailedMetrics.gpu?.min,
+                        maxGpuTime: detailedMetrics.gpu?.max,
+                        gpuStdDev: detailedMetrics.gpu?.stdDev,
+                        minCpuTime: detailedMetrics.cpu?.min,
+                        maxCpuTime: detailedMetrics.cpu?.max,
+                        cpuStdDev: detailedMetrics.cpu?.stdDev
+                    }
+                });
+                
                 this.complete();
                 break;
         }
@@ -177,6 +274,19 @@ export class BenchmarkController {
             this.metrics.cpu.push(cpu);
         }
     }
+    
+    // Get detailed metrics statistics
+    getDetailedMetrics() {
+        const fpsStats = this.log.calculateMetricsStats(this.metrics.fps);
+        const cpuStats = this.log.calculateMetricsStats(this.metrics.cpu);
+        const gpuStats = this.log.calculateMetricsStats(this.metrics.gpu);
+        
+        return {
+            fps: fpsStats,
+            cpu: cpuStats,
+            gpu: gpuStats
+        };
+    }
 
     cancel(logMessage) { 
         this.state = State.IDLE; 
@@ -189,11 +299,20 @@ export class BenchmarkController {
         const cpu_score = (1 / this.results.cpu.avgCpuTime) * 50000;
         const combined_score = this.results.combined.avgFps * 10;
         this.results.finalScore = Math.round(gpu_score + cpu_score + combined_score);
+        
+        // Enable download log button if it exists
+        const downloadLogBtn = document.getElementById('download-log-btn');
+        if (downloadLogBtn) {
+            downloadLogBtn.disabled = false;
+        }
+        
+        // Enable submit score button if it exists
+        const submitScoreBtn = document.getElementById('submit-score-btn');
+        if (submitScoreBtn) {
+            submitScoreBtn.disabled = false;
+        }
 
         this.logMessage(`Benchmark Complete! Final Score: ${this.results.finalScore}`, 'success');
-        this.log.addStage({name: 'GPU Stress', ...this.results.gpu, particles: this.maxQValue, quality: 'simple'});
-        this.log.addStage({name: 'CPU Stress', ...this.results.cpu, particles: this.maxQValue, quality: 'extreme'});
-        this.log.addStage({name: 'Combined', ...this.results.combined, particles: this.maxQValue, quality: 'complex'});
         this.log.complete(this.results.finalScore);
     }
 

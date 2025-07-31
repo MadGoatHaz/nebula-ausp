@@ -92,9 +92,12 @@ function applyForces(dt) {
 }
 
 function resetParticles(newParticleCount) {
+    console.log(`[physics.worker] resetParticles called with ${newParticleCount} particles`);
     currentParticleCount = Math.min(maxParticles, newParticleCount);
-
+    console.log(`[physics.worker] Setting currentParticleCount to ${currentParticleCount}`);
+    
     // Always re-initialize all particles to ensure a clean state, starting after BH and Moon
+    console.log(`[physics.worker] Initializing ${currentParticleCount - 2} particles (skipping BH and Moon)`);
     for (let i = 2; i < currentParticleCount; i++) {
         const i6 = i * STRIDE;
         const radius = 2000 + Math.random() * 8000;
@@ -114,14 +117,17 @@ function resetParticles(newParticleCount) {
         dataView[i6 + 5] = tangent[2] * velMag;
         masses[i] = 1 + Math.random() * 5;
     }
+    console.log(`[physics.worker] Particle initialization complete`);
 }
 
 let physicsInterval;
 
 self.onmessage = (e) => {
+    console.log(`[physics.worker] Received message: ${e.data.type}`, e.data);
     const { type, ...data } = e.data;
-
+    
     if (type === 'init') {
+        console.log(`[physics.worker] Initializing with maxParticles: ${data.maxParticles}`);
         maxParticles = data.maxParticles;
         const buffer = new ArrayBuffer(maxParticles * STRIDE * Float32Array.BYTES_PER_ELEMENT);
         dataView = new Float32Array(buffer);
@@ -133,13 +139,33 @@ self.onmessage = (e) => {
         masses[0] = blackHoleMass;
         masses[1] = MOON_MASS;
         currentParticleCount = 2; // BH and Moon
-
+        console.log(`[physics.worker] Initialized with ${currentParticleCount} particles (BH and Moon)`);
+        
+        // Initialize black hole at origin
+        dataView[0] = 0; // x
+        dataView[1] = 0; // y
+        dataView[2] = 0; // z
+        dataView[3] = 0; // vx
+        dataView[4] = 0; // vy
+        dataView[5] = 0; // vz
+        
+        // Initialize moon at a reasonable starting position
+        dataView[STRIDE] = 3000; // x
+        dataView[STRIDE+1] = 0;  // y
+        dataView[STRIDE+2] = 0;  // z
+        dataView[STRIDE+3] = 0;  // vx
+        dataView[STRIDE+4] = 0;  // vy
+        dataView[STRIDE+5] = 0;  // vz
+        
+        console.log(`[physics.worker] Sending initialized message with buffer`);
         self.postMessage({ type: 'initialized', buffer }, [buffer]);
         return;
     }
-
+    
     if (e.data.buffer) {
-         dataView = new Float32Array(e.data.buffer);
+        console.log(`[physics.worker] Creating Float32Array from buffer, byteLength: ${e.data.buffer.byteLength}`);
+        dataView = new Float32Array(e.data.buffer);
+        console.log(`[physics.worker] dataView created, length: ${dataView.length}`);
     } else {
         console.error(`[physics.worker] Received message type '${type}' without a buffer. Halting.`);
         return;
@@ -147,40 +173,53 @@ self.onmessage = (e) => {
     
     // --- State Updates from Main Thread ---
     // These can be piggy-backed on the main 'physics_update' call.
+    let stateUpdated = false;
     if (data.hasOwnProperty('particleCount')) {
+        console.log(`[physics.worker] Received particleCount update: ${data.particleCount}`);
         resetParticles(data.particleCount);
+        stateUpdated = true;
     }
     if (data.hasOwnProperty('bhMass')) {
+        console.log(`[physics.worker] Received bhMass update: ${data.bhMass}`);
         blackHoleMass = data.bhMass;
         masses[0] = blackHoleMass;
     }
     if (data.hasOwnProperty('quality')) {
+        console.log(`[physics.worker] Received quality update: ${data.quality}`);
         physicsQuality = data.quality;
+        stateUpdated = true;
     }
     if (data.hasOwnProperty('moon_x')) {
         dataView[STRIDE] = data.moon_x;
         dataView[STRIDE+1] = data.moon_y;
         dataView[STRIDE+2] = data.moon_z;
     }
-
+    
     // --- Acknowledge State Update ---
     // If the particle count was changed, send a specific confirmation.
-    if (data.hasOwnProperty('particleCount') || data.hasOwnProperty('quality')) {
+    if (stateUpdated) {
+        console.log(`[physics.worker] Sending state_updated message`);
         self.postMessage({ type: 'state_updated' });
     }
-
+    
     // --- Physics Calculation ---
     const dt = 1/60; // Fixed timestep
-    if(currentParticleCount > 2) {
+    console.log(`[physics.worker] Running physics calculations, currentParticleCount: ${currentParticleCount}, physicsQuality: ${physicsQuality}`);
+    // Run physics calculations when there are particles to simulate (including just the moon)
+    if(currentParticleCount > 1) {
         if (physicsQuality === 'simple') {
             updateSimple(dt);
         } else {
             updateNBody(dt, physicsQuality === 'extreme');
         }
         applyForces(dt);
+        console.log(`[physics.worker] Physics calculations complete`);
+    } else {
+        console.log(`[physics.worker] Skipping physics calculations (currentParticleCount <= 1)`);
     }
     
     // --- Always send data back ---
+    console.log(`[physics.worker] Sending physics_update message, particleCount: ${currentParticleCount}, consumedParticles: ${consumedParticles}`);
     self.postMessage({
         type: 'physics_update',
         buffer: dataView.buffer,
