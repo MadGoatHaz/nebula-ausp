@@ -1,6 +1,6 @@
 # Project Nebula: Definitive Handoff & Developer's Guide
-**Version:** v0.20.0 (Stable Baseline, Post-Fixes)
-**Status:** Phase 1 Complete. Phase 2 In Progress.
+**Version:** Nebula AUSP v0.9.21-alpha (Current Alpha Snapshot)
+**Status:** Phase 1 Complete. Phase 2 In Progress. v0.9.21-alpha consolidates performance work, benchmark refinements, and diagnostics/UI improvements.
 
 ## 1. Executive Summary
 
@@ -121,35 +121,87 @@ To prevent repeating history, we document our critical failures and the lessons 
     *   **Root Cause:** The benchmark controller was not waiting for the physics worker to confirm it had updated the simulation state before proceeding with measurements. This race condition caused the benchmark to measure an empty scene.
     *   **Lesson:** When dealing with asynchronous operations, especially across threads, always implement a confirmation mechanism to ensure operations are completed before proceeding with dependent tasks.
 
-## 6. Future Roadmap
+## 6. Current State & Future Roadmap (Updated, v0.21.x+)
 
 ### Phase 1: Foundation & Core Benchmark
-*   **Status:** ✅ **Complete**
-*   **Objective:** Establish a robust, modern architecture and implement the core multi-stage benchmark "gauntlet."
-*   **Key Results:**
-    - [x] **Modern Tooling:** Project fully migrated to Vite.js for a blazing-fast development experience and optimized builds.
-    - [x] **Decoupled Architecture:** Physics engine isolated in a Web Worker, ensuring a smooth, non-blocking UI.
-    - [x] **Adaptive Max-Q Search:** Initial benchmark stage that intelligently finds the maximum particle load a system can handle at a target FPS.
-    - [x] **Gauntlet Implemented:** Multi-stage stress tests for GPU (fill-rate, shaders), CPU (physics, collisions), and combined system load.
-    - [x] **Scoring v1.0:** A foundational scoring algorithm that provides a comprehensive and comparable metric based on gauntlet results.
+*   **Status:** ✅ **Complete (Stabilized)**
+*   **Objective:** Deliver a robust, modern architecture and a stable multi-stage benchmark "gauntlet."
+*   **Key Results (as implemented):**
+    - [x] Vite-based multi-page app with modular JS.
+    - [x] Three.js scene + post-processing tuned for stability.
+    - [x] Web Worker-based physics engine with:
+          - Shared buffer design,
+          - Bounded timestep,
+          - O(N) core integrators and capped neighbor sampling.
+    - [x] Adaptive Max-Q search with:
+          - Trimmed-mean FPS evaluation,
+          - Minimum sample requirements,
+          - A hard Max-Q cap to avoid pathological particle counts.
+    - [x] Gauntlet stages (GPU / CPU / Combined) wired with safe scoring:
+          - No silent Infinity/NaN,
+          - Invalid runs explicitly marked.
+    - [x] Visual stability and performance improvements:
+          - Volumetric nebula distribution (no flat disc),
+          - Subtle continuous motion,
+          - Controlled instanced rendering (RENDER_MAX_PARTICLES clamp),
+          - Capped and safe jet particles.
 
 ### Phase 2: Leaderboard & Community
-*   **Status:** 🔳 **In Progress**
-*   **Objective:** Build the backend services and frontend UI for a global leaderboard, turning a personal tool into a community platform.
-*   **Key Tasks:**
-    - [ ] **System Info Collector:** Enhance the system profiler to gather more detailed (but still privacy-respecting) hardware information to accompany scores.
-    - [ ] **Backend API:** Develop a lightweight, serverless backend (e.g., using Cloudflare Workers) to securely receive and process benchmark submissions.
-    - [ ] **Persistent Storage:** Implement a reliable database (e.g., KV store, D1, or PostgreSQL) to store scores and system profiles.
-    - [ ] **Submission UI:** Refine the "Submit Score" flow within the application for a seamless user experience.
-    - [ ] **Live Leaderboard:** Create a public-facing leaderboard page with filtering, sorting, and direct links to individual results.
+*   **Status:** 🔳 **In Progress (Foundations Implemented)**
+*   **Objective:** Turn Nebula AUSP into a community benchmark with persistent, queryable scores.
 
-### Phase 3: The Next Frontier - Advanced Testing
-*   **Status:** 🔲 **Planned**
-*   **Objective:** Push the boundaries of web-based benchmarking by leveraging cutting-edge browser technologies to reward and analyze modern hardware.
-*   **Key Tasks:**
-    - [ ] **WASM/SIMD Physics Test:** Develop a hyper-optimized physics simulation in Rust or C++, compiled to WebAssembly. This will serve as a bonus test to measure raw, single-threaded CPU performance, leveraging SIMD where available.
-    - [ ] **GPGPU Compute Test:** Move the entire N-body physics simulation from a Web Worker to a WebGPU compute shader. This will be a massive GPGPU test, measuring the parallel processing power of modern GPUs.
-    - [ ] **WebGPU Ray Tracing Test:** Create a new, visually stunning scene specifically designed to test dedicated RT hardware. This advanced test will only run if the browser reports support for the WebGPU ray-tracing pipeline, providing a true measure of next-generation graphics capabilities.
+*Implemented so far:*
+- [x] Local leaderboard backend:
+  - [server.js](nebula-ausp/server.js:1) + [src/core/database.js](nebula-ausp/src/core/database.js:1)
+  - Express + SQLite with:
+    - Scores table (name, score, GPU, CPU cores, OS, etc.).
+    - Endpoints:
+      - GET /leaderboard (top-N with ranks),
+      - POST /leaderboard (validated insert),
+      - Additional filtered/stat endpoints ready.
+- [x] Frontend integration:
+  - Submission flow in [src/main.js](nebula-ausp/src/main.js:436) posts real scores to the backend.
+  - [src/leaderboard.js](nebula-ausp/src/leaderboard.js:1) renders leaderboard from live JSON (flat schema).
+- [x] Unified dev workflow:
+  - [package.json](nebula-ausp/package.json:7):
+    - `npm run dev:full` starts Vite + API together via `concurrently`.
+
+*Next-step priorities for Phase 2:*
+- [ ] Harden the public API:
+  - Enforce stricter input validation and sane score ranges.
+  - Add simple abuse protection (rate-limiting, basic signatures or nonces).
+- [ ] Pagination & “full leaderboard” UX:
+  - Support `?limit` / `?page` on GET /leaderboard.
+  - Update leaderboard.html to show top-N with paging / filters (GPU, CPU cores, OS).
+- [ ] Deployment-ready backend:
+  - Abstract API base URL so frontend can target:
+    - Local Express during dev,
+    - Cloud/serverless deployment in production (Cloudflare Workers, Fly, etc.).
+- [ ] Enhanced system metadata:
+  - Use existing profiler output to optionally attach richer, privacy-safe system info per score.
+
+### Phase 3: Advanced Testing (Planned)
+
+*   **Status:** 🔲 **Design Locked, Implementation Pending**
+*   **Objective:** Add cutting-edge tests that reward modern hardware without compromising stability.
+
+*Planned tracks:*
+- [ ] WASM/SIMD Physics:
+  - Rust/C++ module compiled to WebAssembly.
+  - Single-threaded, SIMD-accelerated microbenchmark.
+  - Integrated as an optional gauntlet stage when capabilities allow.
+- [ ] WebGPU Compute N-Body:
+  - Mirror or extend the JS worker physics in a pure GPU compute pipeline.
+  - Massive-particle test gated on WebGPU support.
+- [ ] WebGPU Ray Tracing / RT-path:
+  - Optional cinematic scene used only when RT-capable hardware is detected.
+  - Never breaks baseline; strictly additive.
+
+All Phase 3 features MUST:
+- Respect the collaboration rules:
+  - Stability first, no regressions to core benchmark.
+  - Capability-gated; never run on unsupported hardware.
+- Plug into the existing BenchmarkController without ad-hoc hacks.
 
 ## 7. Local Development
 

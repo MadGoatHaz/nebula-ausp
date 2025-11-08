@@ -1,3 +1,5 @@
+const DEBUG_LEADERBOARD = false;
+
 async function populateLeaderboard() {
     try {
         const response = await fetch('http://localhost:3000/leaderboard');
@@ -9,13 +11,23 @@ async function populateLeaderboard() {
         
         if (!tableBody) return;
 
+        if (DEBUG_LEADERBOARD) {
+            console.log('[Leaderboard][client] Loaded entries:', data);
+        }
+
         data.forEach(entry => {
             const row = document.createElement('tr');
+
+            // Backend returns flat columns (gpu, cpuCores, etc.), not nested system object.
+            const gpu = entry.gpu || 'Unknown GPU';
+            const cpu = (entry.cpuCores != null ? entry.cpuCores : '?') + ' Cores';
+            const score = typeof entry.score === 'number' ? entry.score : 0;
+
             row.innerHTML = `
                 <td>${entry.rank}</td>
                 <td>${entry.name}</td>
-                <td>${entry.score}</td>
-                <td>${entry.system.gpu} / ${entry.system.cpuCores} Cores</td>
+                <td>${score}</td>
+                <td>${gpu} / ${cpu}</td>
                 <td>${entry.date}</td>
             `;
             tableBody.appendChild(row);
@@ -31,4 +43,4 @@ async function populateLeaderboard() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', populateLeaderboard); 
+document.addEventListener('DOMContentLoaded', populateLeaderboard);

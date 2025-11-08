@@ -3,6 +3,8 @@ import cors from 'cors';
 import path from 'path';
 import { initializeDatabase, insertScore, getTopScores, getStatistics } from './src/core/database.js';
 
+const DEBUG_LEADERBOARD = false;
+
 const app = express();
 const port = 3000;
 let db;
@@ -27,6 +29,11 @@ app.get('/leaderboard', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 10;
         const scores = await getTopScores(db, Math.min(limit, 100)); // Cap at 100
+
+        if (DEBUG_LEADERBOARD) {
+            console.log('[Leaderboard][server][GET] top scores:', scores);
+        }
+
         res.json(scores);
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
@@ -39,8 +46,19 @@ app.post('/leaderboard', async (req, res) => {
     try {
         const newScore = req.body;
 
+        if (DEBUG_LEADERBOARD) {
+            console.log('[Leaderboard][server][POST] incoming body:', JSON.stringify(newScore));
+        }
+
         // Basic validation
-        if (!newScore || typeof newScore.score !== 'number' || typeof newScore.name !== 'string' || !newScore.system) {
+        if (
+            !newScore ||
+            typeof newScore.name !== 'string' ||
+            !newScore.system ||
+            typeof newScore.score !== 'number' ||
+            !Number.isFinite(newScore.score) ||
+            newScore.score <= 0
+        ) {
             return res.status(400).json({ message: 'Invalid score data' });
         }
 
@@ -63,6 +81,23 @@ app.post('/leaderboard', async (req, res) => {
         });
     } catch (error) {
         console.error('Error submitting score:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// GET /leaderboard - debug listing hook
+app.get('/leaderboard', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        const scores = await getTopScores(db, Math.min(limit, 100)); // Cap at 100
+
+        if (DEBUG_LEADERBOARD) {
+            console.log('[Leaderboard][server][GET] top scores:', scores);
+        }
+
+        res.json(scores);
+    } catch (error) {
+        console.error('Error fetching leaderboard:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });

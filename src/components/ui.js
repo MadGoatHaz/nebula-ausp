@@ -68,8 +68,7 @@ export function createUI() {
     rightPanel.innerHTML = `
         <div class="config-group-header">System Info</div>
         <div id="system-info-panel">
-             <div>CPU Cores: <strong id="spec-cpu">...</strong></div>
-             <div>GPU: <strong id="spec-gpu">...</strong></div>
+            <div id="system-summary-line" class="system-info-summary"></div>
         </div>
 
         <div class="config-group-header">Live Metrics</div>
@@ -130,6 +129,9 @@ export function createUI() {
             gpuGraph: document.getElementById('gpu-graph'),
         },
         systemInfo: {
+            // Optional single-line summary; detailed rows are rendered by renderSystemInfo
+            summary: document.getElementById('system-summary-line'),
+            // Legacy/structured fields populated by renderSystemInfo when present
             cpu: document.getElementById('spec-cpu'),
             gpu: document.getElementById('spec-gpu'),
         },

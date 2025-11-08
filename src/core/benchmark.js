@@ -3,6 +3,24 @@ const GAUNTLET_STAGE_DURATION = 10000;
 const MAX_Q_SEARCH_DURATION = 3000;
 const TRIM_PERCENTAGE = 0.15;
 
+const BH_MASS_BASELINE = 400000;
+const BH_MASS_GPU = 600000;
+const BH_MASS_CPU = 2000000;
+const BH_MASS_COMBINED = 1000000;
+
+// Warm-up configuration:
+// - Warmup is additive (pre-stage), measurement windows remain unchanged.
+// - Kept small to avoid user frustration while giving simulation time to settle.
+const WARMUP_DURATION_MS = 1500;
+
+// Maximum per-step particleCount delta when ramping between stages.
+// Used only internally during warm-up; external API remains unchanged.
+const MAX_PARTICLE_STEP = 20000;
+
+// Minimum number of samples required for a stage to be considered valid.
+// This prevents bogus 0 / Infinity scores when the simulation hasn't stabilized.
+const MIN_SAMPLES_PER_STAGE = 60;
+
 function calculateTrimmedMean(data) {
     if (data.length < 20) return data.length > 0 ? data.reduce((a, b) => a + b, 0) / data.length : 0;
     const sorted = [...data].sort((a, b) => a - b);
@@ -20,11 +38,21 @@ export class BenchmarkController {
         this.state = State.IDLE;
         this.stageStartTime = 0;
         this.metrics = { fps: [], gpu: [], cpu: [] };
-        
+
+        // Per-stage sub-phase tracking:
+        // warmupActive: ignore samples while true.
+        // awaitingSync: true until the benchmark start callback confirms
+        //               state_updated + first physics_update with new settings.
+        this.warmupActive = false;
+        this.awaitingSync = false;
+
         this.maxQValue = 0;
         this.lastPassedCount = 0;
         this.searchStage = 0;
-        this.searchIncrements = [15000, 5000, 1000];
+
+        // More conservative search increments to avoid pushing unstable particle counts
+        // on mid/low hardware while still rewarding strong systems.
+        this.searchIncrements = [20000, 8000, 2000];
         
         this.results = {
             gpu: { avgGpuTime: 0 },
@@ -39,12 +67,12 @@ export class BenchmarkController {
         this.sceneElements = null;
         this.currentParticleCount = 0;
         this.onStateChange = () => {}; // Callback for state changes
-        
+
         // Particle management state
         this.particleResetInProgress = false;
         this.pendingParticleResets = [];
     }
-    
+
     // Enhanced particle count management with queuing
     async setParticleCount(count) {
         if (this.particleResetInProgress) {
@@ -52,20 +80,53 @@ export class BenchmarkController {
             this.pendingParticleResets.push(count);
             return Promise.resolve();
         }
-        
+
         this.particleResetInProgress = true;
-        
+
         try {
-            if (this.onStateChange) {
-                await this.onStateChange({
-                    quality: this.getCurrentPhysicsQuality(),
-                    particleCount: count
-                });
+            const target = Math.max(0, count | 0);
+            let current = this.currentParticleCount | 0;
+
+            // Step large transitions during warm-up to avoid visual popping.
+            // Uses MAX_PARTICLE_STEP; linear stepping only.
+            const applyCount = async (nextCount) => {
+                if (this.onStateChange) {
+                    await this.onStateChange({
+                        quality: this.getCurrentPhysicsQuality(),
+                        particleCount: nextCount,
+                        bhMass: this.getCurrentBhMass()
+                    });
+                }
+                this.currentParticleCount = nextCount;
+            };
+
+            const delta = target - current;
+            const stepSign = delta >= 0 ? 1 : -1;
+            const stepSize = MAX_PARTICLE_STEP * stepSign;
+
+            // Only ramp if we are in a warmup-capable stage.
+            const shouldRamp =
+                (this.state === State.MAX_Q_SEARCH ||
+                 this.state === State.GAUNTLET_GPU ||
+                 this.state === State.GAUNTLET_CPU ||
+                 this.state === State.GAUNTLET_COMBINED) &&
+                Math.abs(delta) > MAX_PARTICLE_STEP;
+
+            if (!shouldRamp) {
+                await applyCount(target);
+            } else {
+                // Walk in linear steps; each step waits for worker sync via onStateChange promise.
+                let next = current;
+                while ((stepSign > 0 && next + stepSize < target) ||
+                       (stepSign < 0 && next + stepSize > target)) {
+                    next += stepSize;
+                    await applyCount(next);
+                }
+                await applyCount(target);
             }
-            this.currentParticleCount = count;
         } finally {
             this.particleResetInProgress = false;
-            
+
             // Process pending requests
             if (this.pendingParticleResets.length > 0) {
                 const nextCount = this.pendingParticleResets.shift();
@@ -85,6 +146,21 @@ export class BenchmarkController {
         }
     }
 
+    getCurrentBhMass() {
+        switch (this.state) {
+            case State.MAX_Q_SEARCH:
+                return BH_MASS_BASELINE;
+            case State.GAUNTLET_GPU:
+                return BH_MASS_GPU;
+            case State.GAUNTLET_CPU:
+                return BH_MASS_CPU;
+            case State.GAUNTLET_COMBINED:
+                return BH_MASS_COMBINED;
+            default:
+                return BH_MASS_BASELINE;
+        }
+    }
+
     start(log, logMessage, onStateChange, sceneElements, resolution, systemCapabilities) {
         this.reset();
         this.log = log;
@@ -94,66 +170,120 @@ export class BenchmarkController {
 
         this.logMessage("Starting Comprehensive Benchmark...", 'warn');
         this.log.start(systemCapabilities, resolution);
-        
+
         this.runMaxQSearch(0);
     }
 
     async runMaxQSearch(count = 0) {
         this.state = State.MAX_Q_SEARCH;
         this.logMessage(`[Max-Q Search] Testing ${count} particles...`, 'info');
-        
-        await this.setParticleCount(count);
-        
-        this.stageStartTime = performance.now();
+
         this.metrics = { fps: [], gpu: [], cpu: [] };
+        this.warmupActive = true;
+        this.awaitingSync = true;
+
+        await this.setParticleCount(count);
+
+        // setParticleCount() waits on onStateChange -> state_updated.
+        // After that, we are synchronized and can start the warmup timer.
+        this.awaitingSync = false;
+        this.stageStartTime = performance.now();
     }
 
     async runGpuTest() {
         this.state = State.GAUNTLET_GPU;
         this.logMessage(`[Gauntlet 1/3] Running GPU Stress Test with ${this.maxQValue} particles...`, 'warn');
-        
+
         this.sceneElements.composer.enabled = true;
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        await this.setParticleCount(this.maxQValue);
-
-        this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
+        this.warmupActive = true;
+        this.awaitingSync = true;
+
+        await this.setParticleCount(this.maxQValue);
+        if (this.onStateChange) {
+            await this.onStateChange({
+                quality: 'simple',
+                particleCount: this.maxQValue,
+                bhMass: BH_MASS_GPU
+            });
+        }
+
+        this.awaitingSync = false;
+        this.stageStartTime = performance.now();
     }
 
     async runCpuTest() {
         this.state = State.GAUNTLET_CPU;
         this.logMessage(`[Gauntlet 2/3] Running CPU Stress Test with ${this.maxQValue} particles...`, 'warn');
-        
+
         this.sceneElements.composer.enabled = false; // Disable post-processing
         this.sceneElements.accretionDisk.visible = false;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = false);
 
-        await this.setParticleCount(this.maxQValue);
-
-        this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
+        this.warmupActive = true;
+        this.awaitingSync = true;
+
+        await this.setParticleCount(this.maxQValue);
+        if (this.onStateChange) {
+            await this.onStateChange({
+                quality: 'extreme',
+                particleCount: this.maxQValue,
+                bhMass: BH_MASS_CPU
+            });
+        }
+
+        this.awaitingSync = false;
+        this.stageStartTime = performance.now();
     }
 
     async runCombinedTest() {
         this.state = State.GAUNTLET_COMBINED;
         this.logMessage(`[Gauntlet 3/3] Running Combined Stress Test with ${this.maxQValue} particles...`, 'warn');
-        
+
         this.sceneElements.composer.enabled = true;
         this.sceneElements.accretionDisk.visible = true;
         this.sceneElements.nebulaMaterials.forEach(m => m.visible = true);
 
-        await this.setParticleCount(this.maxQValue);
-
-        this.stageStartTime = performance.now();
         this.metrics = { fps: [], gpu: [], cpu: [] };
+        this.warmupActive = true;
+        this.awaitingSync = true;
+
+        await this.setParticleCount(this.maxQValue);
+        if (this.onStateChange) {
+            await this.onStateChange({
+                quality: 'complex',
+                particleCount: this.maxQValue,
+                bhMass: BH_MASS_COMBINED
+            });
+        }
+
+        this.awaitingSync = false;
+        this.stageStartTime = performance.now();
     }
 
     update(currentTime) {
         if (this.state === State.IDLE || this.state === State.COMPLETE) return;
 
         const duration = this.state === State.MAX_Q_SEARCH ? MAX_Q_SEARCH_DURATION : GAUNTLET_STAGE_DURATION;
+
+        // While awaitingSync, do not advance warmup or measurement.
+        if (this.awaitingSync) {
+            return;
+        }
+
+        // Warm-up window: ignore samples until full WARMUP_DURATION_MS has elapsed.
+        if (this.warmupActive) {
+            if (currentTime - this.stageStartTime >= WARMUP_DURATION_MS) {
+                this.warmupActive = false;
+                this.stageStartTime = currentTime;
+                this.metrics = { fps: [], gpu: [], cpu: [] };
+            }
+            return;
+        }
 
         if (currentTime - this.stageStartTime >= duration) {
             this.evaluateStage();
@@ -163,12 +293,20 @@ export class BenchmarkController {
     evaluateStage() {
         // Get detailed metrics before evaluating
         const detailedMetrics = this.getDetailedMetrics();
+
+        const hasEnoughSamples = (arr) => Array.isArray(arr) && arr.length >= MIN_SAMPLES_PER_STAGE;
         
         switch(this.state) {
             case State.MAX_Q_SEARCH:
                 this.evaluateMaxQSearch();
                 break;
+
             case State.GAUNTLET_GPU:
+                if (!hasEnoughSamples(this.metrics.gpu)) {
+                    this.logMessage('GPU Test incomplete: insufficient samples. Marking run invalid.', 'danger');
+                    this.complete(true);
+                    break;
+                }
                 this.results.gpu.avgGpuTime = calculateTrimmedMean(this.metrics.gpu);
                 this.logMessage(`GPU Test Complete. Avg Render Time: ${this.results.gpu.avgGpuTime.toFixed(2)}ms`, 'success');
                 
@@ -191,6 +329,11 @@ export class BenchmarkController {
                 this.runCpuTest();
                 break;
             case State.GAUNTLET_CPU:
+                if (!hasEnoughSamples(this.metrics.cpu)) {
+                    this.logMessage('CPU Test incomplete: insufficient samples. Marking run invalid.', 'danger');
+                    this.complete(true);
+                    break;
+                }
                 this.results.cpu.avgCpuTime = calculateTrimmedMean(this.metrics.cpu);
                 this.logMessage(`CPU Test Complete. Avg Physics Time: ${this.results.cpu.avgCpuTime.toFixed(2)}ms`, 'success');
                 
@@ -213,6 +356,11 @@ export class BenchmarkController {
                 this.runCombinedTest();
                 break;
             case State.GAUNTLET_COMBINED:
+                if (!hasEnoughSamples(this.metrics.fps)) {
+                    this.logMessage('Combined Test incomplete: insufficient samples. Marking run invalid.', 'danger');
+                    this.complete(true);
+                    break;
+                }
                 this.results.combined.avgFps = calculateTrimmedMean(this.metrics.fps);
                 this.logMessage(`Combined Test Complete. Avg FPS: ${this.results.combined.avgFps.toFixed(1)}`, 'success');
                 
@@ -247,8 +395,12 @@ export class BenchmarkController {
         
         if (passes) {
             this.lastPassedCount = this.currentParticleCount;
-            if (this.currentParticleCount >= 150000) {
-                this.maxQValue = 150000;
+
+            // Cap Max-Q to keep visual/physics stable even on very strong machines.
+            const HARD_MAX_Q = 120000;
+
+            if (this.currentParticleCount >= HARD_MAX_Q) {
+                this.maxQValue = HARD_MAX_Q;
                 this.logMessage(`Max-Q Search Complete. Value: ${this.maxQValue}`, 'success');
                 this.runGpuTest();
             } else {
@@ -268,11 +420,22 @@ export class BenchmarkController {
     }
 
     recordMetrics(fps, gpu, cpu) {
-        if (this.state !== State.IDLE && this.state !== State.COMPLETE) {
-            this.metrics.fps.push(fps);
-            this.metrics.gpu.push(gpu);
-            this.metrics.cpu.push(cpu);
+        // Only record during active measurement window:
+        // - Not idle/complete
+        // - Not during warm-up
+        // - Not while awaiting sync after a state change
+        if (
+            this.state === State.IDLE ||
+            this.state === State.COMPLETE ||
+            this.warmupActive ||
+            this.awaitingSync
+        ) {
+            return;
         }
+
+        this.metrics.fps.push(fps);
+        this.metrics.gpu.push(gpu);
+        this.metrics.cpu.push(cpu);
     }
     
     // Get detailed metrics statistics
@@ -293,12 +456,24 @@ export class BenchmarkController {
         logMessage("Benchmark cancelled by user.", 'danger');
     }
 
-    complete() {
+    complete(invalid = false) {
         this.state = State.COMPLETE;
-        const gpu_score = (1 / this.results.gpu.avgGpuTime) * 50000;
-        const cpu_score = (1 / this.results.cpu.avgCpuTime) * 50000;
-        const combined_score = this.results.combined.avgFps * 10;
-        this.results.finalScore = Math.round(gpu_score + cpu_score + combined_score);
+
+        if (invalid) {
+            this.results.finalScore = 0;
+            this.logMessage('Benchmark run marked INVALID (insufficient or unstable data).', 'danger');
+            this.log && this.log.complete(0, { invalid: true });
+        } else {
+            const safeGpu = this.results.gpu.avgGpuTime > 0 ? this.results.gpu.avgGpuTime : Infinity;
+            const safeCpu = this.results.cpu.avgCpuTime > 0 ? this.results.cpu.avgCpuTime : Infinity;
+            const safeFps = this.results.combined.avgFps > 0 ? this.results.combined.avgFps : 0;
+
+            const gpu_score = safeGpu !== Infinity ? (1 / safeGpu) * 50000 : 0;
+            const cpu_score = safeCpu !== Infinity ? (1 / safeCpu) * 50000 : 0;
+            const combined_score = safeFps * 10;
+
+            this.results.finalScore = Math.round(gpu_score + cpu_score + combined_score);
+        }
         
         // Enable download log button if it exists
         const downloadLogBtn = document.getElementById('download-log-btn');
@@ -312,8 +487,10 @@ export class BenchmarkController {
             submitScoreBtn.disabled = false;
         }
 
-        this.logMessage(`Benchmark Complete! Final Score: ${this.results.finalScore}`, 'success');
-        this.log.complete(this.results.finalScore);
+        this.logMessage(`Benchmark Complete! Final Score: ${this.results.finalScore}`, invalid ? 'danger' : 'success');
+        if (this.log) {
+            this.log.complete(this.results.finalScore);
+        }
     }
 
     getStatus() {

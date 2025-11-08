@@ -66,8 +66,21 @@ If you find Nebula AUSP impressive, please consider supporting its development. 
 
 ---
 
-### **Development Roadmap**
-Our vision for Nebula is ambitious. We're building the ultimate tool for system profiling on the web, and our progress is tracked in phases. See the [open issues](https://github.com/MadGoatHaz/nebula-ausp/issues) for a full list of proposed features and known bugs.
+### **Current Release**
+
+Current alpha snapshot: **v0.9.21-alpha**
+
+This alpha includes:
+
+- Stabilized physics/render loop with reduced flicker at high particle counts.
+- Deterministic benchmark flow with warm-up phases and synchronized state updates.
+- Enhanced System Info panel and performance graphs for clearer diagnostics.
+- Working local leaderboard backed by Express + SQLite with proper scoring.
+
+Historical details and deep-dive architecture notes are documented in [`PROJECT_NEBULA_GUIDE.md`](nebula-ausp/PROJECT_NEBULA_GUIDE.md:1).
+
+### **Development Roadmap (Updated)**
+Our vision for Nebula remains ambitious. We're building the ultimate tool for system profiling on the web. This is the current, high-level roadmap. See the [open issues](https://github.com/MadGoatHaz/nebula-ausp/issues) for implementation details.
 
 ---
 
@@ -105,22 +118,30 @@ Our vision for Nebula is ambitious. We're building the ultimate tool for system 
 
 ---
 
-### **Getting Started**
-To get a local copy up and running, follow these simple steps.
+### **Getting Started (Local)**
 
 1.  **Clone the repo**
     ```sh
     git clone https://github.com/MadGoatHaz/nebula-ausp.git
-    ```
-2.  **Install NPM packages**
-    ```sh
     cd nebula-ausp
+    ```
+2.  **Install dependencies**
+    ```sh
     npm install
     ```
-3.  **Run the dev server**
+3.  **Run frontend + leaderboard backend together (recommended for dev)**
+    ```sh
+    npm run dev:full
+    ```
+    - Vite dev server: http://localhost:5173/nebula-ausp/
+    - Leaderboard API: http://localhost:3000
+
+4.  **Alternative (frontend only)**
     ```sh
     npm run dev
     ```
+    (Score submission & leaderboard will fail unless the API is also running via `npm run server`.)
+
 
 ---
 > **License** · Distributed under the GPL-3.0 License. See `LICENSE` for more information.
